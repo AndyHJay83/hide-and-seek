@@ -272,6 +272,7 @@
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
     });
+    const DEV_BYPASS_AUTH = true;
     const SUIT_NAMES = ['Spades', 'Hearts', 'Clubs', 'Diamonds'];
     const VAL_NAMES = ['Ace', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Jack', 'Queen', 'King'];
 
@@ -369,6 +370,28 @@
         S.publicCode = data.public_code || '';
         S.isActive = data.is_active !== false;
       }
+    }
+    async function ensureBypassProfile() {
+      const existing = await sb.from('profiles').select('id, email, public_code, is_active').eq('id', S.user.id).maybeSingle();
+      if (existing.error && existing.error.code !== 'PGRST116') throw existing.error;
+      if (existing.data) {
+        S.email = existing.data.email || S.user.email || 'guest@hideandseek.app';
+        S.publicCode = existing.data.public_code || '';
+        S.isActive = existing.data.is_active !== false;
+        return;
+      }
+      const code = (S.user.id || '').replace(/-/g, '').slice(0, 6).toUpperCase() || 'HIDE01';
+      const email = 'guest-' + (S.user.id || Date.now()) + '@hideandseek.app';
+      const ins = await sb.from('profiles').insert({
+        id: S.user.id,
+        email: email,
+        public_code: code,
+        is_active: true
+      });
+      if (ins.error) throw ins.error;
+      S.email = email;
+      S.publicCode = code;
+      S.isActive = true;
     }
     async function setProfileActive(nextActive) {
       const { error } = await sb.from('profiles').update({ is_active: nextActive }).eq('id', S.user.id);
@@ -793,6 +816,32 @@
     }
     async function init() {
       if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+      if (DEV_BYPASS_AUTH) {
+        let session = await getSession();
+        if (!session || !session.user) {
+          const anon = await sb.auth.signInAnonymously();
+          if (anon.error) {
+            S.view = 'welcome';
+            render();
+            showError('Anonymous auth failed. Enable Anonymous provider in Supabase Auth settings.');
+            return;
+          }
+          session = anon.data.session || null;
+        }
+        if (session && session.user) {
+          S.user = session.user;
+          try {
+            await ensureBypassProfile();
+          } catch (_) {
+            S.email = 'guest@hideandseek.app';
+          }
+          try { S.session = await loadActiveSession(); } catch (_) {}
+          S.view = 'home';
+          render();
+          return;
+        }
+      }
+
       const session = await getSession();
       if (session && session.user) {
         S.user = session.user;
