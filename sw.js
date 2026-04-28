@@ -1,4 +1,4 @@
-const CACHE_NAME = 'has-v1';
+const CACHE_NAME = 'has-v2';
 const STATIC_ASSETS = ['./index.html', './accomplice.html', './config.js', './manifest.json'];
 
 self.addEventListener('install', (event) => {
@@ -24,7 +24,13 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
-  const isNetworkFirst = url.hostname.includes('supabase.co') || url.hostname.includes('cdn.jsdelivr.net');
+  const isNetworkFirst =
+    url.hostname.includes('supabase.co') ||
+    url.hostname.includes('cdn.jsdelivr.net') ||
+    req.url.endsWith('/index.html') ||
+    req.url.endsWith('/accomplice.html') ||
+    req.url.endsWith('/config.js') ||
+    req.url.endsWith('/manifest.json');
 
   if (isNetworkFirst) {
     event.respondWith(
@@ -34,7 +40,11 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(req, cloned));
           return res;
         })
-        .catch(() => caches.match(req))
+        .catch(async () => {
+          const cached = await caches.match(req);
+          if (cached) return cached;
+          return new Response('Offline', { status: 503, statusText: 'Offline' });
+        })
     );
     return;
   }
