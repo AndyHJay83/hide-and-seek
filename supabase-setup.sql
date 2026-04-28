@@ -124,7 +124,6 @@ for update
 to anon
 using (
   expired = false
-  and submitted_at is null
   and created_at > (now() - interval '30 minutes')
   and exists (
     select 1

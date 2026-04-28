@@ -218,9 +218,19 @@
         '<div class="panel center">' +
         '<div style="font-size:40px;margin-bottom:6px;">✦</div>' +
         '<h2>Transmitted</h2>' +
-        '<p class="muted" style="margin-top:8px;">You can close this page.</p>' +
+        '<p class="muted" style="margin-top:8px;">Send again or close this page.</p>' +
+        '<button id="transmit-again-btn" class="btn-outline" style="margin-top:12px;">Transmit Again?</button>' +
         '</div>'
       );
+      const again = el('transmit-again-btn');
+      if (again) {
+        again.onclick = () => {
+          S.step = 1;
+          S.seeker = { suit: null, value: null };
+          S.hider = { suit: null, value: null };
+          renderStep();
+        };
+      }
     }
 
     function buildCardScreen(role, state) {
@@ -326,7 +336,6 @@
               submitted_at: new Date().toISOString()
             })
             .eq('id', S.sessionId)
-            .is('submitted_at', null)
             .eq('expired', false);
           if (error) throw error;
           screenSuccess();
@@ -388,7 +397,6 @@
         if (!data) return screenError('Invalid Session', 'Session not found.');
         S.sessionId = data.id;
         if (data.expired) return screenExpired();
-        if (data.submitted_at) return screenSubmitted();
         const age = Date.now() - new Date(data.created_at).getTime();
         if (age > 30 * 60 * 1000) return screenExpired();
         renderStep();

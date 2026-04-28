@@ -264,7 +264,16 @@
       regCode: '', regEmail: '', regPublicCode: '',
       loginEmail: '', publicCode: '', isActive: true,
       session: null, sessionChannel: null, sessionPoll: null, performResult: null,
-      voice: { rec: null, listening: false, status: 'Idle', transcript: '', parsed: null, result: null }
+      voice: {
+        rec: null,
+        listening: false,
+        status: 'Idle',
+        transcript: '',
+        parsed: null,
+        result: null,
+        startTrigger: 'okay',
+        endTrigger: 'amazing'
+      }
     };
 
     function el(id) { return document.getElementById(id); }
@@ -391,11 +400,16 @@
       if (cells[0]) cells[0].focus();
     }
 
-    function parseVoiceCards(raw) {
+    function parseVoiceCards(raw, startTrigger, endTrigger) {
       const text = (raw || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
-      const startIdx = text.indexOf('okay');
-      const endIdx = text.lastIndexOf('amazing');
-      const windowText = (startIdx >= 0 && endIdx > startIdx) ? text.slice(startIdx + 4, endIdx).trim() : text;
+      const normalizedStart = (startTrigger || 'okay').toLowerCase().trim();
+      const normalizedEnd = (endTrigger || 'amazing').toLowerCase().trim();
+      const startIdx = normalizedStart ? text.indexOf(normalizedStart) : -1;
+      const endIdx = normalizedEnd ? text.lastIndexOf(normalizedEnd) : -1;
+      const startOffset = startIdx >= 0 ? normalizedStart.length : 0;
+      const windowText = (startIdx >= 0 && endIdx > startIdx)
+        ? text.slice(startIdx + startOffset, endIdx).trim()
+        : text;
       const tokens = windowText.split(' ');
       const valMap = { ace: 0, one: 0, a: 0, two: 1, to: 1, too: 1, three: 2, four: 3, for: 3, five: 4, six: 5, seven: 6, eight: 7, ate: 7, nine: 8, ten: 9, jack: 10, queen: 11, king: 12, j: 10, q: 11, k: 12 };
       const suitMap = { spade: 0, spades: 0, heart: 1, hearts: 1, club: 2, clubs: 2, diamond: 3, diamonds: 3 };
@@ -538,13 +552,21 @@
 
     function viewHome() {
       const sess = S.session;
-      return '<div style="display:flex;align-items:center;gap:12px;"><div class="logo" style="margin:12px 0 0;flex:1;text-align:left;font-size:28px;">HIDE & SEEK</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack"><div class="muted">Signed in as ' + (S.email || '') + '</div><div class="session-bar"><span>Public Link Code</span><strong>' + (S.publicCode || 'N/A') + '</strong></div><div class="session-bar"><span>Account Status</span><span>' + (S.isActive ? 'ACTIVE' : 'INACTIVE') + '</span></div>' + (sess ? '<div class="session-bar"><span>Active Session</span><span id="home-session-time">' + formatCountdown(sessionRemaining()) + '</span></div>' : '<div class="session-bar"><span>No active session</span><span class="tiny">Create one from ACCOMPLICE</span></div>') + '<button id="go-perform" class="action-tile">PERFORM</button><button id="go-accomplice" class="action-tile">ACCOMPLICE</button><button id="go-voice" class="action-tile">VOICE MODE</button><button id="toggle-active" class="btn-outline btn-full">' + (S.isActive ? 'Deactivate Account' : 'Activate Account') + '</button></div><div id="error-box" class="error"></div>';
+      return '<div style="display:flex;align-items:center;gap:12px;"><div class="logo" style="margin:12px 0 0;flex:1;text-align:left;font-size:28px;">HIDE & SEEK</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack"><div class="muted">Signed in as ' + (S.email || '') + '</div><div class="session-bar"><span>Public Link Code</span><button id="copy-public-link" class="btn-outline" style="padding:5px 9px;min-height:28px;font-size:12px;">' + (S.publicCode || 'N/A') + '</button></div><div class="tiny">Tap the code to copy accomplice URL</div><div class="session-bar"><span>Account Status</span><span>' + (S.isActive ? 'ACTIVE' : 'INACTIVE') + '</span></div>' + (sess ? '<div class="session-bar"><span>Active Session</span><span id="home-session-time">' + formatCountdown(sessionRemaining()) + '</span></div>' : '<div class="session-bar"><span>No active session</span><span class="tiny">Create one from ACCOMPLICE</span></div>') + '<button id="go-perform" class="action-tile">PERFORM</button><button id="go-accomplice" class="action-tile">ACCOMPLICE</button><button id="go-voice" class="action-tile">VOICE MODE</button><button id="toggle-active" class="btn-outline btn-full">' + (S.isActive ? 'Deactivate Account' : 'Activate Account') + '</button></div><div id="error-box" class="error"></div>';
     }
     function bindHome() {
       el('open-settings').onclick = () => go('settings');
       el('go-perform').onclick = async () => { S.session = await loadActiveSession(); go('perform'); };
       el('go-accomplice').onclick = async () => { S.session = await loadActiveSession(); go('accomplice-send'); };
       el('go-voice').onclick = () => go('voice');
+      el('copy-public-link').onclick = async () => {
+        const url = APP_URL.replace(/\/$/, '') + '/accomplice.html?c=' + S.publicCode;
+        try {
+          await navigator.clipboard.writeText(url);
+        } catch (_) {
+          window.prompt('Copy accomplice URL:', url);
+        }
+      };
       el('toggle-active').onclick = async () => {
         const btn = el('toggle-active');
         try {
@@ -578,7 +600,7 @@
         if (!S.publicCode) throw new Error('No public code set on your profile.');
         if (!S.isActive) throw new Error('Account is inactive. Activate account to use accomplice links.');
         if (!S.session || sessionRemaining() <= 0 || S.session.expired) await createNewSession();
-        const sessUrl = APP_URL + '/accomplice.html?c=' + S.publicCode;
+        const sessUrl = APP_URL.replace(/\/$/, '') + '/accomplice.html?c=' + S.publicCode;
         setText('sess-url', sessUrl);
         const q = el('qr-box'); q.innerHTML = '';
         new QRCode(q, { text: sessUrl, width: 200, height: 200, colorDark: '#000', colorLight: '#fff' });
@@ -620,12 +642,13 @@
       if (data.submitted_at && data.seeker_suit != null && data.hider_suit != null) {
         S.performResult = data;
         showPerformResult(data);
-        if (S.sessionPoll) { clearInterval(S.sessionPoll); S.sessionPoll = null; }
       }
     }
     function bindPerform() {
       const b = el('perform-back'); if (b) b.onclick = () => go('home');
       const exit = el('perform-exit'); if (exit) exit.onclick = () => go('home');
+      const screen = document.querySelector('.perform-screen');
+      if (screen) screen.ondblclick = () => go('home');
       if (!S.session) return;
       const timerIntv = setInterval(() => {
         const t = el('perform-timer'); if (!t) return clearInterval(timerIntv);
@@ -640,7 +663,6 @@
         if (data.submitted_at && data.seeker_suit != null && data.hider_suit != null) {
           S.performResult = data;
           showPerformResult(data);
-          if (S.sessionPoll) { clearInterval(S.sessionPoll); S.sessionPoll = null; }
         }
       }).subscribe();
       S.sessionPoll = setInterval(checkSessionForResult, 5000);
@@ -650,13 +672,18 @@
     function viewVoice() {
       const parsed = S.voice.parsed;
       const result = S.voice.result;
-      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Voice Mode</h2><p class="muted">Say your phrase between "Okay" and "Amazing".</p><div class="voice-state"><strong>Status:</strong> <span class="' + (S.voice.listening ? 'mic-live' : '') + '">' + S.voice.status + '</span></div><div class="voice-state"><strong>Transcript:</strong><br>' + (S.voice.transcript || '<span class="muted">Waiting...</span>') + '</div><div class="voice-state"><strong>Detected:</strong><br>' + (parsed ? ('Seeker: ' + cardLabel(parsed.seeker.suit, parsed.seeker.value) + '<br>Hider: ' + cardLabel(parsed.hider.suit, parsed.hider.value)) : '<span class="muted">None yet</span>') + '</div><div class="voice-state"><strong>Result:</strong><br>' + (result ? result : '<span class="muted">No result</span>') + '</div><div class="btn-row"><button id="voice-start" class="btn-primary">Start Listening</button><button id="voice-stop" class="btn-outline">Stop</button></div><button id="voice-back" class="btn-outline btn-full">Back Home</button></div><div id="error-box" class="error"></div>';
+      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Voice Mode</h2><p class="muted">Set your own trigger phrases. Listening auto-stops when end trigger is heard.</p><div class="voice-state"><strong>Status:</strong> <span class="' + (S.voice.listening ? 'mic-live' : '') + '">' + S.voice.status + '</span></div><div><label>Start Trigger</label><input id="voice-start-trigger" type="text" value="' + (S.voice.startTrigger || 'okay') + '"></div><div><label>End Trigger</label><input id="voice-end-trigger" type="text" value="' + (S.voice.endTrigger || 'amazing') + '"></div>' + (parsed ? ('<div class="voice-state"><strong>Seeker:</strong> ' + cardLabel(parsed.seeker.suit, parsed.seeker.value) + '<br><strong>Hider:</strong> ' + cardLabel(parsed.hider.suit, parsed.hider.value) + '<br><strong>Information:</strong> ' + result + '</div>') : '') + '<div class="btn-row"><button id="voice-start" class="btn-primary">Start Listening</button></div><button id="voice-back" class="btn-outline btn-full">Back Home</button></div><div id="error-box" class="error"></div>';
     }
     function bindVoice() {
       el('voice-back').onclick = () => go('home');
-      el('voice-stop').onclick = () => { stopVoice(); S.voice.status = 'Listening ended'; render(); };
       el('voice-start').onclick = () => {
         clearError();
+        S.voice.startTrigger = (el('voice-start-trigger').value || 'okay').trim().toLowerCase();
+        S.voice.endTrigger = (el('voice-end-trigger').value || 'amazing').trim().toLowerCase();
+        if (!S.voice.startTrigger || !S.voice.endTrigger) {
+          showError('Please provide both start and end trigger phrases.');
+          return;
+        }
         S.voice.transcript = '';
         S.voice.parsed = null;
         S.voice.result = null;
@@ -674,17 +701,25 @@
           let full = '';
           for (let i = 0; i < event.results.length; i++) full += event.results[i][0].transcript + ' ';
           S.voice.transcript = full.trim();
-          render();
-          const parsed = parseVoiceCards(S.voice.transcript);
+          const heardEndTrigger = S.voice.transcript.toLowerCase().includes(S.voice.endTrigger);
+          if (!heardEndTrigger) {
+            S.voice.status = 'Mic active and listening...';
+            render();
+            return;
+          }
+          S.voice.status = 'End trigger heard. Processing...';
+          const parsed = parseVoiceCards(S.voice.transcript, S.voice.startTrigger, S.voice.endTrigger);
+          stopVoice();
           if (!parsed.error) {
-            S.voice.status = 'Listening ended and parsed';
+            S.voice.status = 'Transmission captured.';
             S.voice.parsed = parsed;
             const d = calcDiff(parsed.seeker.suit, parsed.seeker.value, parsed.hider.suit, parsed.hider.value);
             const signed = d > 0 ? '+' + d : String(d);
-            S.voice.result = signed + ' (' + cardLabel(parsed.seeker.suit, parsed.seeker.value) + ' -> ' + cardLabel(parsed.hider.suit, parsed.hider.value) + ')';
-            stopVoice();
-            render();
+            S.voice.result = signed;
+          } else {
+            S.voice.status = parsed.error;
           }
+          render();
         };
         rec.onerror = () => { S.voice.status = 'Voice error'; S.voice.listening = false; render(); };
         rec.onend = () => { S.voice.listening = false; if (!S.voice.parsed) S.voice.status = 'Listening ended'; render(); };
