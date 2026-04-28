@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>HIDE & SEEK — Accomplice</title>
+  <style>
+    :root {
+      --black: #000;
+      --surface: #111;
+      --surface-2: #1a1a1a;
+      --border: rgba(255,255,255,0.09);
+      --border-mid: rgba(255,255,255,0.28);
+      --border-bright: rgba(255,255,255,0.7);
+      --white: #fff;
+      --muted: rgba(255,255,255,0.42);
+      --dim: rgba(255,255,255,0.18);
+      --glow-xs: 0 0 10px rgba(255,255,255,0.15);
+      --glow-sm: 0 0 22px rgba(255,255,255,0.25);
+      --r: 14px;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      background: #000;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    }
+    body {
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .app {
+      max-width: 560px;
+      margin: 0 auto;
+      min-height: 100vh;
+      min-height: 100dvh;
+      padding: 20px 16px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .logo {
+      text-align: center;
+      font-size: 26px;
+      letter-spacing: 0.18em;
+      font-weight: 900;
+      text-shadow: var(--glow-sm);
+      margin-top: 6px;
+    }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 16px;
+      box-shadow: var(--glow-xs);
+    }
+    .muted { color: var(--muted); }
+    .center { text-align: center; }
+    .steps {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      border: 1px solid var(--border-mid);
+      background: transparent;
+    }
+    .dot.active { background: #fff; border-color: #fff; box-shadow: var(--glow-xs); }
+    .dot.done { background: rgba(255,255,255,0.5); border-color: rgba(255,255,255,0.6); }
+    .role-chip {
+      display: inline-block;
+      border: 1px solid var(--border-mid);
+      border-radius: 999px;
+      padding: 6px 11px;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+    }
+    .preview {
+      border: 1px solid var(--border-mid);
+      background: var(--surface-2);
+      border-radius: 12px;
+      min-height: 66px;
+      padding: 12px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 12px;
+      font-size: 16px;
+    }
+    .val-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .card-btn {
+      border: 1px solid var(--border-mid);
+      background: transparent;
+      color: #fff;
+      border-radius: 11px;
+      min-height: 54px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .card-btn.king { grid-column: span 4; }
+    .card-btn.sel {
+      border-color: rgba(255,255,255,0.7);
+      background: rgba(255,255,255,0.12);
+      box-shadow: var(--glow-xs);
+    }
+    .suit-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .suit-btn {
+      border: 1px solid var(--border-mid);
+      background: transparent;
+      color: #fff;
+      border-radius: 11px;
+      min-height: 58px;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      gap: 1px;
+      font-size: 14px;
+    }
+    .suit-btn span:first-child { font-size: 24px; line-height: 1; }
+    .suit-btn.sel {
+      border-color: rgba(255,255,255,0.7);
+      background: rgba(255,255,255,0.12);
+      box-shadow: var(--glow-xs);
+    }
+    .btn-primary, .btn-outline {
+      width: 100%;
+      border-radius: 12px;
+      min-height: 46px;
+      padding: 11px 14px;
+      font-size: 15px;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+    }
+    .btn-primary {
+      border: 0;
+      background: #fff;
+      color: #000;
+      box-shadow: var(--glow-sm);
+      font-weight: 700;
+    }
+    .btn-outline {
+      border: 1px solid var(--border-mid);
+      background: transparent;
+      color: #fff;
+      margin-top: 10px;
+    }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div id="app" class="app"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="./config.js"></script>
+  <script>
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const SUITS = [
+      { sym: '♠', name: 'Spades', idx: 0 },
+      { sym: '♥', name: 'Hearts', idx: 1 },
+      { sym: '♣', name: 'Clubs', idx: 2 },
+      { sym: '♦', name: 'Diamonds', idx: 3 }
+    ];
+    const VALS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+    const VAL_NAMES = ['Ace','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Jack','Queen','King'];
+    function cardLabel(suit, val) { return VAL_NAMES[val] + ' of ' + SUITS[suit].name; }
+
+    const S = {
+      sessionId: '',
+      performerId: '',
+      step: 1,
+      seeker: { suit: null, value: null },
+      hider: { suit: null, value: null }
+    };
+
+    function el(id) { return document.getElementById(id); }
+    function setHTML(html) { el('app').innerHTML = html; }
+
+    function screenLoading() {
+      setHTML('<div class="logo">HIDE & SEEK</div><div class="panel center"><p>Loading session...</p></div>');
+    }
+
+    function screenError(title, msg) {
+      setHTML('<div class="logo">HIDE & SEEK</div><div class="panel center"><h2>' + title + '</h2><p class="muted">' + msg + '</p></div>');
+    }
+
+    function screenExpired() {
+      screenError('Session Expired', 'This link is no longer active. Ask for a new one.');
+    }
+
+    function screenSubmitted() {
+      screenError('Already Submitted', 'This session has already been transmitted.');
+    }
+
+    function screenSuccess() {
+      setHTML(
+        '<div class="logo">HIDE & SEEK</div>' +
+        '<div class="panel center">' +
+        '<div style="font-size:40px;margin-bottom:6px;">✦</div>' +
+        '<h2>Transmitted</h2>' +
+        '<p class="muted" style="margin-top:8px;">You can close this page.</p>' +
+        '</div>'
+      );
+    }
+
+    function buildCardScreen(role, state) {
+      const isStep1 = role === 'seeker';
+      const card = state[role];
+      const preview = (card.suit == null || card.value == null) ? 'Select value and suit' : cardLabel(card.suit, card.value);
+      const nextDisabled = card.suit == null || card.value == null ? 'disabled' : '';
+
+      const dot = (idx) => {
+        let cls = 'dot';
+        if ((isStep1 && idx === 1) || (!isStep1 && idx === 2) || (!isStep1 && S.step === 3 && idx === 3)) cls += ' active';
+        if ((!isStep1 && idx === 1) || (S.step === 3 && idx < 3)) cls += ' done';
+        return '<div class="' + cls + '"></div>';
+      };
+
+      return '' +
+        '<div class="logo">HIDE & SEEK</div>' +
+        '<div class="panel">' +
+        '<div class="steps">' + dot(1) + dot(2) + dot(3) + '</div>' +
+        '<div class="center"><span class="role-chip">' + (isStep1 ? 'SEEKER' : 'HIDER') + '</span></div>' +
+        '<div class="preview">' + preview + '</div>' +
+        '<div class="val-grid" id="val-grid">' +
+        VALS.map((v, i) => {
+          const isKing = i === 12 ? ' king' : '';
+          const sel = card.value === i ? ' sel' : '';
+          return '<button class="card-btn' + isKing + sel + '" data-v="' + i + '">' + v + '</button>';
+        }).join('') +
+        '</div>' +
+        '<div class="suit-row" id="suit-row">' +
+        SUITS.map((s) => {
+          const sel = card.suit === s.idx ? ' sel' : '';
+          return '<button class="suit-btn' + sel + '" data-s="' + s.idx + '"><span>' + s.sym + '</span><span>' + s.name + '</span></button>';
+        }).join('') +
+        '</div>' +
+        '<button id="next-btn" class="btn-primary" ' + nextDisabled + '>' + (isStep1 ? 'Next: Hider Card' : 'Next: Confirm') + '</button>' +
+        '</div>';
+    }
+
+    function refreshCardScreen(role) {
+      setHTML(buildCardScreen(role, S));
+      bindCardScreen(role, S);
+    }
+
+    function bindCardScreen(role, state) {
+      const card = state[role];
+      el('val-grid').onclick = (e) => {
+        const btn = e.target.closest('button[data-v]');
+        if (!btn) return;
+        card.value = Number(btn.dataset.v);
+        refreshCardScreen(role);
+      };
+
+      el('suit-row').onclick = (e) => {
+        const btn = e.target.closest('button[data-s]');
+        if (!btn) return;
+        card.suit = Number(btn.dataset.s);
+        refreshCardScreen(role);
+      };
+
+      el('next-btn').onclick = () => {
+        if (card.value == null || card.suit == null) return;
+        if (role === 'seeker') {
+          S.step = 2;
+          renderStep();
+          return;
+        }
+        S.step = 3;
+        renderStep();
+      };
+    }
+
+    function buildConfirmScreen() {
+      return '' +
+        '<div class="logo">HIDE & SEEK</div>' +
+        '<div class="panel">' +
+        '<div class="steps"><div class="dot done"></div><div class="dot done"></div><div class="dot active"></div></div>' +
+        '<h2 class="center" style="margin-bottom:12px;">Confirm Transmission</h2>' +
+        '<div class="preview">SEEKER: ' + cardLabel(S.seeker.suit, S.seeker.value) + '</div>' +
+        '<div class="preview">HIDER: ' + cardLabel(S.hider.suit, S.hider.value) + '</div>' +
+        '<button id="transmit-btn" class="btn-primary">Transmit</button>' +
+        '<button id="edit-btn" class="btn-outline">Edit</button>' +
+        '</div>';
+    }
+
+    function bindConfirmScreen() {
+      el('edit-btn').onclick = () => {
+        S.step = 1;
+        renderStep();
+      };
+
+      el('transmit-btn').onclick = async () => {
+        const btn = el('transmit-btn');
+        btn.disabled = true;
+        btn.textContent = 'Transmitting...';
+        try {
+          const { error } = await sb
+            .from('sessions')
+            .update({
+              seeker_suit: S.seeker.suit,
+              seeker_value: S.seeker.value,
+              hider_suit: S.hider.suit,
+              hider_value: S.hider.value,
+              submitted_at: new Date().toISOString()
+            })
+            .eq('id', S.sessionId)
+            .is('submitted_at', null)
+            .eq('expired', false);
+          if (error) throw error;
+          screenSuccess();
+        } catch (err) {
+          screenError('Transmit Failed', err.message || 'Could not submit this session.');
+        }
+      };
+    }
+
+    function renderStep() {
+      if (S.step === 1) {
+        setHTML(buildCardScreen('seeker', S));
+        bindCardScreen('seeker', S);
+        return;
+      }
+      if (S.step === 2) {
+        setHTML(buildCardScreen('hider', S));
+        bindCardScreen('hider', S);
+        return;
+      }
+      if (S.step === 3) {
+        setHTML(buildConfirmScreen());
+        bindConfirmScreen();
+      }
+    }
+
+    async function init() {
+      screenLoading();
+      const params = new URLSearchParams(window.location.search);
+      const sessionId = params.get('s');
+      const code = (params.get('c') || '').toUpperCase().trim();
+
+      try {
+        let data = null;
+        if (sessionId) {
+          const r = await sb.from('sessions').select('*').eq('id', sessionId).maybeSingle();
+          if (r.error) throw r.error;
+          data = r.data;
+        } else if (code) {
+          const pr = await sb.from('profiles').select('id, is_active').eq('public_code', code).maybeSingle();
+          if (pr.error) throw pr.error;
+          if (!pr.data) return screenError('Invalid Link', 'Unknown performer code.');
+          if (!pr.data.is_active) return screenError('Performer Inactive', 'This performer is not currently accepting transmissions.');
+          S.performerId = pr.data.id;
+          const sr = await sb
+            .from('sessions')
+            .select('*')
+            .eq('performer_id', pr.data.id)
+            .eq('expired', false)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (sr.error) throw sr.error;
+          data = sr.data;
+        } else {
+          return screenError('Invalid Link', 'Missing session or performer code.');
+        }
+
+        if (!data) return screenError('Invalid Session', 'Session not found.');
+        S.sessionId = data.id;
+        if (data.expired) return screenExpired();
+        if (data.submitted_at) return screenSubmitted();
+        const age = Date.now() - new Date(data.created_at).getTime();
+        if (age > 30 * 60 * 1000) return screenExpired();
+        renderStep();
+      } catch (err) {
+        screenError('Error', err.message || 'Could not load session.');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>

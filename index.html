@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>HIDE & SEEK</title>
+  <meta name="theme-color" content="#000000">
+  <link rel="manifest" href="./manifest.json">
+  <style>
+    :root {
+      --black: #000;
+      --surface: #111;
+      --surface-2: #1a1a1a;
+      --border: rgba(255,255,255,0.09);
+      --border-mid: rgba(255,255,255,0.28);
+      --border-bright: rgba(255,255,255,0.7);
+      --white: #fff;
+      --muted: rgba(255,255,255,0.42);
+      --dim: rgba(255,255,255,0.18);
+      --glow-xs: 0 0 10px rgba(255,255,255,0.15);
+      --glow-sm: 0 0 22px rgba(255,255,255,0.25);
+      --glow-md: 0 0 42px rgba(255,255,255,0.35);
+      --glow-lg: 0 0 80px rgba(255,255,255,0.45);
+      --r: 14px;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      background: var(--black);
+      color: var(--white);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    }
+    body {
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .app {
+      min-height: 100vh;
+      min-height: 100dvh;
+      padding: 24px 18px 24px;
+      max-width: 520px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .logo {
+      text-align: center;
+      font-size: clamp(28px, 7vw, 40px);
+      letter-spacing: 0.18em;
+      font-weight: 900;
+      text-shadow: var(--glow-sm);
+      margin: 20px 0 12px;
+    }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 16px;
+      box-shadow: var(--glow-xs);
+    }
+    .muted { color: var(--muted); }
+    .tiny { font-size: 12px; color: var(--dim); }
+    .center { text-align: center; }
+    h2, p { margin: 0; }
+    h2 { font-size: 18px; letter-spacing: 0.03em; }
+    .stack { display: flex; flex-direction: column; gap: 12px; }
+    .spacer { height: 8px; }
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+    }
+    input {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--border-mid);
+      background: #0a0a0a;
+      color: var(--white);
+      padding: 14px 12px;
+      font-size: 16px;
+      outline: none;
+      text-transform: uppercase;
+    }
+    input[type="email"] { text-transform: none; }
+    input:focus {
+      border-color: var(--border-bright);
+      box-shadow: var(--glow-xs);
+    }
+    .btn-row { display: flex; flex-wrap: wrap; gap: 10px; }
+    button {
+      border: 0;
+      font-size: 15px;
+      letter-spacing: 0.04em;
+      padding: 13px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      min-height: 44px;
+      transition: all .15s ease;
+    }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .btn-primary { background: #fff; color: #000; box-shadow: var(--glow-sm); font-weight: 700; }
+    .btn-outline { background: transparent; color: #fff; border: 1px solid var(--border-mid); }
+    .btn-full { width: 100%; }
+    .action-tile {
+      display: block;
+      width: 100%;
+      text-align: left;
+      border-radius: 14px;
+      border: 1px solid var(--border-mid);
+      background: var(--surface);
+      color: #fff;
+      padding: 28px 24px;
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      box-shadow: var(--glow-xs);
+    }
+    .action-tile:active, .action-tile:hover { border-color: var(--border-bright); box-shadow: var(--glow-sm); }
+    .otp-wrap {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .otp-cell {
+      width: 100%;
+      height: 58px;
+      text-align: center;
+      font-size: 28px;
+      border-radius: 12px;
+      border: 1px solid var(--border-mid);
+      background: #0a0a0a;
+      color: #fff;
+      padding: 0;
+    }
+    .session-bar {
+      border: 1px solid var(--border-mid);
+      background: var(--surface-2);
+      border-radius: 12px;
+      padding: 11px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+    }
+    .toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+    .error {
+      color: #fff;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.24);
+      border-radius: 10px;
+      padding: 10px;
+      display: none;
+      font-size: 13px;
+    }
+    .settings-link {
+      margin-left: auto;
+      width: 38px;
+      height: 38px;
+      border-radius: 999px;
+      border: 1px solid var(--border-mid);
+      display: grid;
+      place-items: center;
+      background: transparent;
+      color: #fff;
+      font-size: 16px;
+    }
+    .qr-box {
+      width: 220px;
+      height: 220px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      padding: 10px;
+    }
+    .perform-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: #000;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 24px;
+    }
+    .perform-awaiting { font-weight: 700; letter-spacing: 0.2em; color: rgba(255,255,255,0.75); animation: pulse 1.5s ease-in-out infinite; }
+    .perform-num { font-size: clamp(120px, 32vw, 200px); line-height: 1; font-weight: 900; letter-spacing: 0.04em; text-shadow: var(--glow-lg); }
+    .perform-sub { margin-top: 12px; color: var(--muted); font-size: 14px; }
+    .perform-exit {
+      position: fixed;
+      top: calc(env(safe-area-inset-top) + 8px);
+      left: calc(env(safe-area-inset-left) + 8px);
+      background: transparent;
+      color: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.12);
+      padding: 5px 8px;
+      border-radius: 8px;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+    }
+    .perform-timer {
+      position: fixed;
+      right: calc(env(safe-area-inset-right) + 10px);
+      bottom: calc(env(safe-area-inset-bottom) + 10px);
+      color: rgba(255,255,255,0.2);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+    }
+    .voice-state {
+      border: 1px solid var(--border-mid);
+      border-radius: 12px;
+      padding: 10px;
+      font-size: 13px;
+      background: var(--surface-2);
+    }
+    .mic-live {
+      color: #fff;
+      text-shadow: var(--glow-sm);
+      animation: pulse 1.2s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 0.35; }
+      50% { opacity: 1; }
+      100% { opacity: 0.35; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app" class="app"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="./config.js"></script>
+  <script>
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+    });
+    const SUIT_NAMES = ['Spades', 'Hearts', 'Clubs', 'Diamonds'];
+    const VAL_NAMES = ['Ace', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Jack', 'Queen', 'King'];
+
+    function cardPos(suit, val) { return suit * 13 + val + 1; }
+    function cardLabel(suit, val) { return VAL_NAMES[val] + ' of ' + SUIT_NAMES[suit]; }
+    function calcDiff(ss, sv, hs, hv) { return cardPos(hs, hv) - cardPos(ss, sv); }
+    function isValidPublicCode(v) { return /^[A-Z0-9]{6}$/.test(v); }
+
+    const S = {
+      view: 'welcome', user: null, email: '',
+      regCode: '', regEmail: '', regPublicCode: '',
+      loginEmail: '', publicCode: '', isActive: true,
+      session: null, sessionChannel: null, sessionPoll: null, performResult: null,
+      voice: { rec: null, listening: false, status: 'Idle', transcript: '', parsed: null, result: null }
+    };
+
+    function el(id) { return document.getElementById(id); }
+    function setText(id, text) { const n = el(id); if (n) n.textContent = text; }
+    function showError(msg) { const n = el('error-box'); if (n) { n.style.display = 'block'; n.textContent = msg; } }
+    function clearError() { const n = el('error-box'); if (n) { n.style.display = 'none'; n.textContent = ''; } }
+    function setBtn(btn, loading, label) {
+      if (!btn) return;
+      if (!btn.dataset.label) btn.dataset.label = btn.textContent;
+      btn.disabled = !!loading;
+      btn.textContent = loading ? (label || 'Please wait...') : btn.dataset.label;
+    }
+    function formatCountdown(ms) {
+      const sec = Math.max(0, Math.floor(ms / 1000));
+      const m = String(Math.floor(sec / 60)).padStart(2, '0');
+      const s = String(sec % 60).padStart(2, '0');
+      return m + ':' + s;
+    }
+    function stopVoice() {
+      if (S.voice.rec) {
+        S.voice.rec.onend = null;
+        S.voice.rec.onerror = null;
+        S.voice.rec.onresult = null;
+        S.voice.rec.stop();
+        S.voice.rec = null;
+      }
+      S.voice.listening = false;
+    }
+    function clearSessionWatchers() {
+      if (S.sessionChannel) { sb.removeChannel(S.sessionChannel); S.sessionChannel = null; }
+      if (S.sessionPoll) { clearInterval(S.sessionPoll); S.sessionPoll = null; }
+    }
+    function go(view) {
+      clearSessionWatchers();
+      stopVoice();
+      S.view = view;
+      render();
+    }
+
+    async function getSession() { const { data } = await sb.auth.getSession(); return data.session || null; }
+    async function hasProfile(email) {
+      const { data, error } = await sb.from('profiles').select('id').eq('email', email.toLowerCase()).maybeSingle();
+      if (error) throw error; return !!data;
+    }
+    async function hasPublicCode(code) {
+      const { data, error } = await sb.from('profiles').select('id').eq('public_code', code).maybeSingle();
+      if (error && error.code !== 'PGRST116') throw error;
+      return !!data;
+    }
+    async function validateCode(code) {
+      const c = code.toUpperCase().trim();
+      const { data, error } = await sb.from('purchase_codes').select('code,redeemed').eq('code', c).maybeSingle();
+      if (error) throw error; return data && data.redeemed === false;
+    }
+    async function redeemCode(code) {
+      const { error } = await sb.from('purchase_codes').update({
+        redeemed: true, redeemed_by: S.user.id, redeemed_at: new Date().toISOString()
+      }).eq('code', code.toUpperCase().trim()).eq('redeemed', false);
+      if (error) throw error;
+    }
+    async function createProfile() {
+      const payload = { id: S.user.id, email: S.user.email.toLowerCase(), public_code: S.regPublicCode, is_active: true };
+      const { error } = await sb.from('profiles').insert(payload);
+      if (error) throw error;
+    }
+    async function loadProfile() {
+      if (!S.user) return;
+      const { data, error } = await sb.from('profiles').select('email, public_code, is_active').eq('id', S.user.id).maybeSingle();
+      if (error) throw error;
+      if (data) {
+        S.email = data.email || S.user.email || '';
+        S.publicCode = data.public_code || '';
+        S.isActive = data.is_active !== false;
+      }
+    }
+    async function setProfileActive(nextActive) {
+      const { error } = await sb.from('profiles').update({ is_active: nextActive }).eq('id', S.user.id);
+      if (error) throw error;
+      S.isActive = nextActive;
+    }
+    function sessionAge() { if (!S.session) return null; return Date.now() - new Date(S.session.created_at).getTime(); }
+    function sessionRemaining() { const age = sessionAge(); if (age == null) return 0; return Math.max(0, 30 * 60 * 1000 - age); }
+    async function loadActiveSession() {
+      if (!S.user) return null;
+      const { data, error } = await sb.from('sessions').select('*').eq('performer_id', S.user.id).eq('expired', false).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      if (Date.now() - new Date(data.created_at).getTime() > 30 * 60 * 1000) {
+        await sb.from('sessions').update({ expired: true }).eq('id', data.id);
+        return null;
+      }
+      return data;
+    }
+    async function createNewSession() {
+      if (!S.user) throw new Error('Not authenticated.');
+      if (!S.isActive) throw new Error('Activate account to generate session links.');
+      await sb.from('sessions').update({ expired: true }).eq('performer_id', S.user.id).eq('expired', false);
+      const { data, error } = await sb.from('sessions').insert({ performer_id: S.user.id }).select('*').single();
+      if (error) throw error;
+      S.session = data;
+      S.performResult = null;
+      return data;
+    }
+
+    function initOtpInputs(onComplete) {
+      const cells = [0,1,2,3,4,5].map((i) => el('otp-' + i));
+      cells.forEach((input, idx) => {
+        if (!input) return;
+        input.addEventListener('input', () => {
+          input.value = (input.value || '').replace(/\D/g, '').slice(0, 1);
+          if (input.value && idx < 5) cells[idx + 1].focus();
+          const code = cells.map((c) => c.value).join('');
+          if (code.length === 6) onComplete(code);
+        });
+        input.addEventListener('keydown', (e) => { if (e.key === 'Backspace' && !input.value && idx > 0) cells[idx - 1].focus(); });
+        input.addEventListener('paste', (e) => {
+          const txt = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, 6);
+          if (!txt) return;
+          e.preventDefault();
+          txt.split('').forEach((ch, i) => { if (cells[i]) cells[i].value = ch; });
+          if (txt.length === 6) onComplete(txt);
+        });
+      });
+      if (cells[0]) cells[0].focus();
+    }
+
+    function parseVoiceCards(raw) {
+      const text = (raw || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+      const startIdx = text.indexOf('okay');
+      const endIdx = text.lastIndexOf('amazing');
+      const windowText = (startIdx >= 0 && endIdx > startIdx) ? text.slice(startIdx + 4, endIdx).trim() : text;
+      const tokens = windowText.split(' ');
+      const valMap = { ace: 0, one: 0, a: 0, two: 1, to: 1, too: 1, three: 2, four: 3, for: 3, five: 4, six: 5, seven: 6, eight: 7, ate: 7, nine: 8, ten: 9, jack: 10, queen: 11, king: 12, j: 10, q: 11, k: 12 };
+      const suitMap = { spade: 0, spades: 0, heart: 1, hearts: 1, club: 2, clubs: 2, diamond: 3, diamonds: 3 };
+      const cards = [];
+      for (let i = 0; i < tokens.length; i++) {
+        const t = tokens[i];
+        const value = /^\d+$/.test(t) ? (Number(t) === 1 ? 0 : Number(t) - 1) : valMap[t];
+        if (value == null || value < 0 || value > 12) continue;
+        let suit = null;
+        for (let j = i + 1; j <= Math.min(i + 3, tokens.length - 1); j++) { if (suitMap[tokens[j]] != null) { suit = suitMap[tokens[j]]; break; } }
+        if (suit == null) for (let j = Math.max(0, i - 2); j < i; j++) { if (suitMap[tokens[j]] != null) { suit = suitMap[tokens[j]]; break; } }
+        if (suit != null) cards.push({ value, suit, idx: i });
+      }
+      if (cards.length < 2) return { error: 'Could not detect two cards clearly.' };
+      let seeker = null;
+      let hider = null;
+      for (let i = 0; i < cards.length; i++) {
+        const c = cards[i];
+        const ctx = tokens.slice(Math.max(0, c.idx - 6), Math.min(tokens.length, c.idx + 7)).join(' ');
+        if (!seeker && ctx.includes('seeker')) seeker = c;
+        if (!hider && ctx.includes('hider')) hider = c;
+      }
+      if (!seeker && !hider) { seeker = cards[0]; hider = cards[1]; }
+      else if (!seeker) seeker = cards.find((c) => c !== hider) || cards[0];
+      else if (!hider) hider = cards.find((c) => c !== seeker) || cards[1];
+      return {
+        transcript: windowText,
+        seeker: { suit: seeker.suit, value: seeker.value },
+        hider: { suit: hider.suit, value: hider.value }
+      };
+    }
+
+    function viewWelcome() {
+      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2 class="center">Performance Transmission Tool</h2><p class="muted center">Install this as a PWA for best results.</p><div class="spacer"></div><button id="go-login" class="btn-primary btn-full">LOGIN</button><button id="go-reg" class="btn-outline btn-full">CREATE ACCOUNT</button></div><div id="error-box" class="error"></div>';
+    }
+    function bindWelcome() { el('go-login').onclick = () => go('login-email'); el('go-reg').onclick = () => go('reg-code'); }
+
+    function viewLoginEmail() {
+      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Login</h2><p class="muted">Enter your account email. We will send a 6-digit code.</p><div><label>Email</label><input id="login-email-input" type="email" placeholder="you@email.com" value="' + (S.loginEmail || '') + '"></div><button id="send-login-otp" class="btn-primary btn-full">Send Code</button><button id="back-welcome" class="btn-outline btn-full">Back</button></div><div id="error-box" class="error"></div>';
+    }
+    function bindLoginEmail() {
+      el('back-welcome').onclick = () => go('welcome');
+      el('send-login-otp').onclick = async () => {
+        clearError();
+        const btn = el('send-login-otp');
+        const email = (el('login-email-input').value || '').trim().toLowerCase();
+        if (!email) return showError('Enter your email.');
+        try {
+          setBtn(btn, true, 'Sending...');
+          if (!(await hasProfile(email))) throw new Error('No profile found for this email.');
+          const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+          if (error) throw error;
+          S.loginEmail = email;
+          go('login-otp');
+        } catch (err) { showError(err.message || 'Unable to send OTP.'); }
+        finally { setBtn(btn, false); }
+      };
+    }
+    function viewLoginOtp() {
+      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Enter Code</h2><p class="muted">Code sent to ' + S.loginEmail + '</p><div class="otp-wrap">' + [0,1,2,3,4,5].map((i) => '<input class="otp-cell" id="otp-' + i + '" inputmode="numeric" autocomplete="one-time-code" maxlength="1">').join('') + '</div><button id="back-login-email" class="btn-outline btn-full">Back</button></div><div id="error-box" class="error"></div>';
+    }
+    function bindLoginOtp() {
+      el('back-login-email').onclick = () => go('login-email');
+      initOtpInputs(async (token) => {
+        clearError();
+        try {
+          const { data, error } = await sb.auth.verifyOtp({ email: S.loginEmail, token, type: 'email' });
+          if (error) throw error;
+          S.user = data.user;
+          await loadProfile();
+          S.session = await loadActiveSession();
+          go('home');
+        } catch (err) { showError(err.message || 'Invalid code.'); }
+      });
+    }
+
+    function viewRegCode() {
+      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Create Account</h2><p class="muted">Enter your purchase code.</p><div><label>Purchase Code</label><input id="reg-code-input" type="text" placeholder="HAS-XXXX-0001" value="' + (S.regCode || '') + '"></div><button id="check-code" class="btn-primary btn-full">Continue</button><button id="back-welcome-2" class="btn-outline btn-full">Back</button></div><div id="error-box" class="error"></div>';
+    }
+    function bindRegCode() {
+      el('back-welcome-2').onclick = () => go('welcome');
+      el('check-code').onclick = async () => {
+        clearError();
+        const btn = el('check-code');
+        const code = (el('reg-code-input').value || '').toUpperCase().trim();
+        if (!code) return showError('Enter a code.');
+        try {
+          setBtn(btn, true, 'Validating...');
+          if (!(await validateCode(code))) throw new Error('Code is invalid or already redeemed.');
+          S.regCode = code;
+          go('reg-email');
+        } catch (err) { showError(err.message || 'Code check failed.'); }
+        finally { setBtn(btn, false); }
+      };
+    }
+    function viewRegEmail() {
+      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Create Account</h2><p class="muted">Enter your email and a permanent 6-character public code.</p><div><label>Email</label><input id="reg-email-input" type="email" placeholder="you@email.com" value="' + (S.regEmail || '') + '"></div><div><label>Public Code</label><input id="reg-public-code-input" type="text" maxlength="6" placeholder="1A2B3C" value="' + (S.regPublicCode || '') + '"></div><button id="send-reg-otp" class="btn-primary btn-full">Send Code</button><button id="back-reg-code" class="btn-outline btn-full">Back</button></div><div id="error-box" class="error"></div>';
+    }
+    function bindRegEmail() {
+      el('back-reg-code').onclick = () => go('reg-code');
+      el('send-reg-otp').onclick = async () => {
+        clearError();
+        const btn = el('send-reg-otp');
+        const email = (el('reg-email-input').value || '').trim().toLowerCase();
+        const publicCode = (el('reg-public-code-input').value || '').toUpperCase().trim();
+        if (!email) return showError('Enter an email.');
+        if (!isValidPublicCode(publicCode)) return showError('Public code must be exactly 6 letters/numbers.');
+        try {
+          setBtn(btn, true, 'Sending...');
+          if (await hasProfile(email)) throw new Error('This email already has an account. Use login.');
+          if (await hasPublicCode(publicCode)) throw new Error('That public code is already taken.');
+          const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+          if (error) throw error;
+          S.regEmail = email;
+          S.regPublicCode = publicCode;
+          go('reg-otp');
+        } catch (err) { showError(err.message || 'Could not send OTP.'); }
+        finally { setBtn(btn, false); }
+      };
+    }
+    function viewRegOtp() {
+      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Enter Code</h2><p class="muted">Code sent to ' + S.regEmail + '</p><div class="otp-wrap">' + [0,1,2,3,4,5].map((i) => '<input class="otp-cell" id="otp-' + i + '" inputmode="numeric" autocomplete="one-time-code" maxlength="1">').join('') + '</div><button id="back-reg-email" class="btn-outline btn-full">Back</button></div><div id="error-box" class="error"></div>';
+    }
+    function bindRegOtp() {
+      el('back-reg-email').onclick = () => go('reg-email');
+      initOtpInputs(async (token) => {
+        clearError();
+        try {
+          const { data, error } = await sb.auth.verifyOtp({ email: S.regEmail, token, type: 'email' });
+          if (error) throw error;
+          S.user = data.user;
+          await createProfile();
+          await redeemCode(S.regCode);
+          await loadProfile();
+          S.session = await loadActiveSession();
+          go('home');
+        } catch (err) { showError(err.message || 'Verification failed.'); }
+      });
+    }
+
+    function viewHome() {
+      const sess = S.session;
+      return '<div style="display:flex;align-items:center;gap:12px;"><div class="logo" style="margin:12px 0 0;flex:1;text-align:left;font-size:28px;">HIDE & SEEK</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack"><div class="muted">Signed in as ' + (S.email || '') + '</div><div class="session-bar"><span>Public Link Code</span><strong>' + (S.publicCode || 'N/A') + '</strong></div><div class="session-bar"><span>Account Status</span><span>' + (S.isActive ? 'ACTIVE' : 'INACTIVE') + '</span></div>' + (sess ? '<div class="session-bar"><span>Active Session</span><span id="home-session-time">' + formatCountdown(sessionRemaining()) + '</span></div>' : '<div class="session-bar"><span>No active session</span><span class="tiny">Create one from ACCOMPLICE</span></div>') + '<button id="go-perform" class="action-tile">PERFORM</button><button id="go-accomplice" class="action-tile">ACCOMPLICE</button><button id="go-voice" class="action-tile">VOICE MODE</button><button id="toggle-active" class="btn-outline btn-full">' + (S.isActive ? 'Deactivate Account' : 'Activate Account') + '</button></div><div id="error-box" class="error"></div>';
+    }
+    function bindHome() {
+      el('open-settings').onclick = () => go('settings');
+      el('go-perform').onclick = async () => { S.session = await loadActiveSession(); go('perform'); };
+      el('go-accomplice').onclick = async () => { S.session = await loadActiveSession(); go('accomplice-send'); };
+      el('go-voice').onclick = () => go('voice');
+      el('toggle-active').onclick = async () => {
+        const btn = el('toggle-active');
+        try {
+          setBtn(btn, true, 'Saving...');
+          await setProfileActive(!S.isActive);
+          if (!S.isActive && S.session) {
+            await sb.from('sessions').update({ expired: true }).eq('performer_id', S.user.id).eq('expired', false);
+            S.session = null;
+          }
+          render();
+        } catch (err) { showError(err.message || 'Could not update account status.'); }
+        finally { setBtn(btn, false); }
+      };
+      if (S.session) {
+        const intv = setInterval(() => {
+          const t = el('home-session-time');
+          if (!t) return clearInterval(intv);
+          const rem = sessionRemaining();
+          t.textContent = formatCountdown(rem);
+          if (rem <= 0) { clearInterval(intv); S.session = null; render(); }
+        }, 1000);
+      }
+    }
+
+    function viewAccompliceSend() {
+      return '<div class="logo">HIDE & SEEK</div><div class="panel stack center"><h2>Accomplice Link</h2><div id="qr-box" class="qr-box"></div><p class="tiny" id="sess-url" style="word-break:break-all;"></p><div class="session-bar"><span>Expires in</span><span id="send-count">' + formatCountdown(sessionRemaining()) + '</span></div><div class="btn-row"><button id="copy-link" class="btn-primary">Copy Link</button><button id="go-perform-from-send" class="btn-outline">Go to Perform</button></div><button id="new-link" class="btn-outline btn-full">Generate New Link</button><button id="back-home-from-send" class="btn-outline btn-full">Back Home</button></div><div id="error-box" class="error"></div>';
+    }
+    async function bindAccompliceSend() {
+      clearError();
+      try {
+        if (!S.publicCode) throw new Error('No public code set on your profile.');
+        if (!S.isActive) throw new Error('Account is inactive. Activate account to use accomplice links.');
+        if (!S.session || sessionRemaining() <= 0 || S.session.expired) await createNewSession();
+        const sessUrl = APP_URL + '/accomplice.html?c=' + S.publicCode;
+        setText('sess-url', sessUrl);
+        const q = el('qr-box'); q.innerHTML = '';
+        new QRCode(q, { text: sessUrl, width: 200, height: 200, colorDark: '#000', colorLight: '#fff' });
+        el('copy-link').onclick = async () => { try { await navigator.clipboard.writeText(sessUrl); } catch (_) { window.prompt('Copy link:', sessUrl); } };
+        el('go-perform-from-send').onclick = () => go('perform');
+        el('back-home-from-send').onclick = () => go('home');
+        el('new-link').onclick = async () => {
+          const btn = el('new-link');
+          setBtn(btn, true, 'Generating...');
+          try { await createNewSession(); render(); } catch (err) { showError(err.message || 'Could not create new session.'); }
+          finally { setBtn(btn, false); }
+        };
+        const tick = setInterval(() => {
+          const n = el('send-count');
+          if (!n) return clearInterval(tick);
+          const rem = sessionRemaining();
+          n.textContent = formatCountdown(rem);
+          if (rem <= 0) { clearInterval(tick); S.session = null; el('app').innerHTML = '<div class="app"><div class="panel center">Session expired. Generate a new link.</div></div>'; }
+        }, 1000);
+      } catch (err) { showError(err.message || 'Failed to load session.'); }
+    }
+
+    function viewPerform() {
+      if (!S.session) return '<div class="logo">HIDE & SEEK</div><div class="panel stack center"><h2>No Active Session</h2><p class="muted">Create one from ACCOMPLICE first.</p><button id="perform-back" class="btn-outline btn-full">Back Home</button></div>';
+      return '<div class="perform-screen"><button id="perform-exit" class="perform-exit">EXIT</button><div id="perform-main"><div class="perform-awaiting">AWAITING TRANSMISSION</div></div><div id="perform-timer" class="perform-timer">' + formatCountdown(sessionRemaining()) + '</div></div>';
+    }
+    function showPerformResult(data) {
+      const diff = calcDiff(data.seeker_suit, data.seeker_value, data.hider_suit, data.hider_value);
+      const signed = diff > 0 ? '+' + diff : String(diff);
+      const main = el('perform-main');
+      if (!main) return;
+      main.innerHTML = '<div class="perform-num">' + signed + '</div><div class="perform-sub">' + cardLabel(data.seeker_suit, data.seeker_value) + '</div><div class="perform-sub">' + cardLabel(data.hider_suit, data.hider_value) + '</div>';
+    }
+    async function checkSessionForResult() {
+      if (!S.session) return;
+      const { data, error } = await sb.from('sessions').select('*').eq('id', S.session.id).maybeSingle();
+      if (error || !data) return;
+      S.session = data;
+      if (data.submitted_at && data.seeker_suit != null && data.hider_suit != null) {
+        S.performResult = data;
+        showPerformResult(data);
+        if (S.sessionPoll) { clearInterval(S.sessionPoll); S.sessionPoll = null; }
+      }
+    }
+    function bindPerform() {
+      const b = el('perform-back'); if (b) b.onclick = () => go('home');
+      const exit = el('perform-exit'); if (exit) exit.onclick = () => go('home');
+      if (!S.session) return;
+      const timerIntv = setInterval(() => {
+        const t = el('perform-timer'); if (!t) return clearInterval(timerIntv);
+        const rem = sessionRemaining(); t.textContent = formatCountdown(rem);
+        if (rem <= 0) { clearInterval(timerIntv); clearSessionWatchers(); S.session = null; S.performResult = null; go('home'); }
+      }, 1000);
+      S.sessionChannel = sb.channel('perform-' + S.session.id).on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'sessions', filter: 'id=eq.' + S.session.id
+      }, (payload) => {
+        const data = payload.new;
+        S.session = data;
+        if (data.submitted_at && data.seeker_suit != null && data.hider_suit != null) {
+          S.performResult = data;
+          showPerformResult(data);
+          if (S.sessionPoll) { clearInterval(S.sessionPoll); S.sessionPoll = null; }
+        }
+      }).subscribe();
+      S.sessionPoll = setInterval(checkSessionForResult, 5000);
+      checkSessionForResult();
+    }
+
+    function viewVoice() {
+      const parsed = S.voice.parsed;
+      const result = S.voice.result;
+      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Voice Mode</h2><p class="muted">Say your phrase between "Okay" and "Amazing".</p><div class="voice-state"><strong>Status:</strong> <span class="' + (S.voice.listening ? 'mic-live' : '') + '">' + S.voice.status + '</span></div><div class="voice-state"><strong>Transcript:</strong><br>' + (S.voice.transcript || '<span class="muted">Waiting...</span>') + '</div><div class="voice-state"><strong>Detected:</strong><br>' + (parsed ? ('Seeker: ' + cardLabel(parsed.seeker.suit, parsed.seeker.value) + '<br>Hider: ' + cardLabel(parsed.hider.suit, parsed.hider.value)) : '<span class="muted">None yet</span>') + '</div><div class="voice-state"><strong>Result:</strong><br>' + (result ? result : '<span class="muted">No result</span>') + '</div><div class="btn-row"><button id="voice-start" class="btn-primary">Start Listening</button><button id="voice-stop" class="btn-outline">Stop</button></div><button id="voice-back" class="btn-outline btn-full">Back Home</button></div><div id="error-box" class="error"></div>';
+    }
+    function bindVoice() {
+      el('voice-back').onclick = () => go('home');
+      el('voice-stop').onclick = () => { stopVoice(); S.voice.status = 'Listening ended'; render(); };
+      el('voice-start').onclick = () => {
+        clearError();
+        S.voice.transcript = '';
+        S.voice.parsed = null;
+        S.voice.result = null;
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) { showError('Speech recognition is not supported in this browser.'); return; }
+        stopVoice();
+        const rec = new SR();
+        rec.lang = 'en-US';
+        rec.continuous = true;
+        rec.interimResults = true;
+        S.voice.rec = rec;
+        S.voice.listening = true;
+        S.voice.status = 'Mic active and listening...';
+        rec.onresult = (event) => {
+          let full = '';
+          for (let i = 0; i < event.results.length; i++) full += event.results[i][0].transcript + ' ';
+          S.voice.transcript = full.trim();
+          render();
+          const parsed = parseVoiceCards(S.voice.transcript);
+          if (!parsed.error) {
+            S.voice.status = 'Listening ended and parsed';
+            S.voice.parsed = parsed;
+            const d = calcDiff(parsed.seeker.suit, parsed.seeker.value, parsed.hider.suit, parsed.hider.value);
+            const signed = d > 0 ? '+' + d : String(d);
+            S.voice.result = signed + ' (' + cardLabel(parsed.seeker.suit, parsed.seeker.value) + ' -> ' + cardLabel(parsed.hider.suit, parsed.hider.value) + ')';
+            stopVoice();
+            render();
+          }
+        };
+        rec.onerror = () => { S.voice.status = 'Voice error'; S.voice.listening = false; render(); };
+        rec.onend = () => { S.voice.listening = false; if (!S.voice.parsed) S.voice.status = 'Listening ended'; render(); };
+        rec.start();
+        render();
+      };
+    }
+
+    function viewSettings() {
+      const age = sessionAge();
+      const debug = [
+        'User ID: ' + (S.user ? S.user.id : 'none'),
+        'Session ID: ' + (S.session ? S.session.id : 'none'),
+        'Public Code: ' + (S.publicCode || 'none'),
+        'Active: ' + (S.isActive ? 'yes' : 'no'),
+        'Age: ' + (age == null ? 'n/a' : Math.floor(age / 1000) + 's'),
+        'Remaining: ' + formatCountdown(sessionRemaining()),
+        'Submitted: ' + (S.session && S.session.submitted_at ? 'yes' : 'no')
+      ].join('\n');
+      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Public Code: <strong>' + (S.publicCode || 'N/A') + '</strong></p><pre class="panel tiny" style="white-space:pre-wrap;">' + debug + '</pre><button id="logout-btn" class="btn-outline btn-full">Logout</button><button id="settings-back" class="btn-primary btn-full">Back</button></div><div id="error-box" class="error"></div>';
+    }
+    function bindSettings() {
+      el('settings-back').onclick = () => go('home');
+      el('logout-btn').onclick = async () => {
+        await sb.auth.signOut();
+        clearSessionWatchers();
+        stopVoice();
+        S.user = null; S.email = ''; S.publicCode = ''; S.isActive = true;
+        S.session = null; S.performResult = null; S.regCode = ''; S.regEmail = ''; S.regPublicCode = ''; S.loginEmail = '';
+        go('welcome');
+      };
+    }
+
+    async function render() {
+      const app = el('app'); if (!app) return;
+      if (S.view === 'welcome') { app.innerHTML = viewWelcome(); bindWelcome(); return; }
+      if (S.view === 'login-email') { app.innerHTML = viewLoginEmail(); bindLoginEmail(); return; }
+      if (S.view === 'login-otp') { app.innerHTML = viewLoginOtp(); bindLoginOtp(); return; }
+      if (S.view === 'reg-code') { app.innerHTML = viewRegCode(); bindRegCode(); return; }
+      if (S.view === 'reg-email') { app.innerHTML = viewRegEmail(); bindRegEmail(); return; }
+      if (S.view === 'reg-otp') { app.innerHTML = viewRegOtp(); bindRegOtp(); return; }
+      if (S.view === 'home') { app.innerHTML = viewHome(); bindHome(); return; }
+      if (S.view === 'accomplice-send') { app.innerHTML = viewAccompliceSend(); await bindAccompliceSend(); return; }
+      if (S.view === 'perform') { app.innerHTML = viewPerform(); bindPerform(); return; }
+      if (S.view === 'voice') { app.innerHTML = viewVoice(); bindVoice(); return; }
+      if (S.view === 'settings') { app.innerHTML = viewSettings(); bindSettings(); }
+    }
+    async function init() {
+      if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+      const session = await getSession();
+      if (session && session.user) {
+        S.user = session.user;
+        try { await loadProfile(); } catch (_) { S.email = session.user.email || ''; }
+        try { S.session = await loadActiveSession(); } catch (_) {}
+        S.view = 'home';
+      }
+      render();
+    }
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
