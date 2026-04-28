@@ -161,6 +161,6 @@ $$;
 
 -- Seed examples (optional):
 -- insert into public.purchase_codes (code) values
--- ('HAS-ABCD-0001'),
+-- ('HAS-ABCD-1234'),
 -- ('HAS-EFGH-0002'),
 -- ('HAS-IJKL-0003');
