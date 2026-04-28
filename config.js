@@ -1,3 +1,3 @@
-const SUPABASE_URL = 'https://YOUR_PROJECT_ID.supabase.co';
-const SUPABASE_ANON_KEY = 'YOUR_ANON_PUBLIC_KEY_HERE';
-const APP_URL = 'https://YOUR_GITHUB_USERNAME.github.io/YOUR_REPO_NAME';
+const SUPABASE_URL = 'https://eywsdoevxpelkfporvkf.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_nhdKmL-I0YmaSiUbCSWZyw_13T0iN3l';
+const APP_URL = 'https://andyhjay83.github.io/hide-and-seek/';
