@@ -201,6 +201,126 @@
       background: #ff4545;
       box-shadow: 0 0 16px rgba(255,69,69,0.8);
     }
+    .code-chip {
+      display: inline-block;
+      margin: 0 auto;
+      border: 1px solid var(--border-mid);
+      border-radius: 999px;
+      padding: 8px 14px;
+      letter-spacing: 0.16em;
+      font-weight: 700;
+      font-size: 14px;
+      background: var(--surface-2);
+    }
+    .status-inline {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 6px;
+    }
+    .status-inline .status-dot {
+      margin: 0;
+      width: 16px;
+      height: 16px;
+    }
+    .delay-wrap {
+      border: 1px solid var(--border-mid);
+      border-radius: 12px;
+      padding: 12px;
+      background: var(--surface-2);
+    }
+    .delay-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .delay-slider {
+      width: 100%;
+    }
+    .active-toggle {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      letter-spacing: 0.06em;
+    }
+    .switch {
+      position: relative;
+      width: 56px;
+      height: 32px;
+      border-radius: 999px;
+      border: 1px solid var(--border-mid);
+      background: var(--surface-2);
+      cursor: pointer;
+    }
+    .switch::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: #fff;
+      transition: transform .2s ease;
+    }
+    .switch.on {
+      background: rgba(49,255,112,0.2);
+      border-color: rgba(49,255,112,0.7);
+    }
+    .switch.on::after {
+      transform: translateX(24px);
+    }
+    .timer-center {
+      text-align: center;
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      margin-top: 4px;
+      text-shadow: var(--glow-sm);
+    }
+    .btn-row.equal > button {
+      flex: 1 1 0;
+      width: 50%;
+    }
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: calc(env(safe-area-inset-bottom) + 20px);
+      transform: translateX(-50%);
+      z-index: 200;
+      background: rgba(255,255,255,0.94);
+      color: #000;
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      box-shadow: var(--glow-sm);
+    }
+    .solo-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 120;
+      background: #000;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      gap: 14px;
+    }
+    .solo-hint {
+      color: var(--muted);
+      font-size: 13px;
+      max-width: 320px;
+    }
     .qr-box {
       width: 220px;
       height: 220px;
@@ -295,7 +415,10 @@
         result: null,
         startTrigger: 'okay',
         endTrigger: 'amazing'
-      }
+      },
+      soloDelaySec: 0,
+      soloCountdownIntv: null,
+      soloStartTimer: null
     };
 
     function el(id) { return document.getElementById(id); }
@@ -323,10 +446,22 @@
         S.voice.rec = null;
       }
       S.voice.listening = false;
+      if (S.soloCountdownIntv) { clearInterval(S.soloCountdownIntv); S.soloCountdownIntv = null; }
+      if (S.soloStartTimer) { clearTimeout(S.soloStartTimer); S.soloStartTimer = null; }
     }
     function clearSessionWatchers() {
       if (S.sessionChannel) { sb.removeChannel(S.sessionChannel); S.sessionChannel = null; }
       if (S.sessionPoll) { clearInterval(S.sessionPoll); S.sessionPoll = null; }
+    }
+    function showToast(msg) {
+      const old = el('toast');
+      if (old) old.remove();
+      const n = document.createElement('div');
+      n.id = 'toast';
+      n.className = 'toast';
+      n.textContent = msg;
+      document.body.appendChild(n);
+      setTimeout(() => { if (n.parentNode) n.parentNode.removeChild(n); }, 1300);
     }
     function go(view) {
       clearSessionWatchers();
@@ -595,13 +730,16 @@
     }
 
     function viewHome() {
-      return '<div style="display:flex;align-items:center;gap:12px;"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div><div class="logo" style="margin:12px 0 0;flex:1;text-align:left;font-size:28px;">HIDE & SEEK</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack"><div class="muted">Signed in as ' + (S.email || '') + '</div><div class="session-bar"><span>Public Link Code</span><button id="copy-public-link" class="btn-outline" style="padding:5px 9px;min-height:28px;font-size:12px;">' + (S.publicCode || 'N/A') + '</button></div><div class="tiny">Tap the code to copy active accomplice URL</div><button id="go-perform" class="action-tile">PERFORM</button><button id="go-accomplice" class="action-tile">ACCOMPLICE</button><button id="go-voice" class="action-tile">VOICE MODE</button><button id="toggle-active" class="btn-outline btn-full">' + (S.isActive ? 'Temporarily Turn Off' : 'Turn Back On') + '</button></div><div id="error-box" class="error"></div>';
+      return '<div style="display:flex;align-items:center;gap:12px;"><div class="logo" style="margin:12px auto 0;flex:1;text-align:center;font-size:30px;">HIDE & SEEK</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack"><button id="copy-public-link" class="code-chip">' + (S.publicCode || 'N/A') + '</button><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div><button id="go-solo" class="action-tile">🎤 PERFORM SOLO</button><div class="delay-wrap"><div class="delay-row"><span>Solo Delay</span><strong id="delay-value">' + String(S.soloDelaySec) + 's</strong></div><input id="solo-delay" class="delay-slider" type="range" min="0" max="30" step="1" value="' + String(S.soloDelaySec) + '"><div class="tiny center">0 seconds = manual lower-half double tap start/stop</div></div><button id="go-accomplice" class="action-tile">ACCOMPLICE</button><div class="active-toggle"><span>ACTIVE?</span><button id="toggle-active" class="switch ' + (S.isActive ? 'on' : 'off') + '" aria-label="toggle active"></button></div></div><div id="error-box" class="error"></div>';
     }
     function bindHome() {
       el('open-settings').onclick = () => go('settings');
-      el('go-perform').onclick = async () => { S.session = await loadActiveSession(); go('perform'); };
       el('go-accomplice').onclick = async () => { S.session = await loadActiveSession(); go('accomplice-send'); };
-      el('go-voice').onclick = () => go('voice');
+      el('go-solo').onclick = () => go('solo-perform');
+      el('solo-delay').oninput = (e) => {
+        S.soloDelaySec = Number(e.target.value || 0);
+        setText('delay-value', String(S.soloDelaySec) + 's');
+      };
       el('copy-public-link').onclick = async () => {
         clearError();
         if (!S.publicCode) return showError('No public link code available.');
@@ -616,14 +754,13 @@
         const url = APP_URL.replace(/\/$/, '') + '/accomplice.html?c=' + S.publicCode;
         try {
           await navigator.clipboard.writeText(url);
+          showToast('Copied');
         } catch (_) {
           window.prompt('Copy accomplice URL:', url);
         }
       };
       el('toggle-active').onclick = async () => {
-        const btn = el('toggle-active');
         try {
-          setBtn(btn, true, 'Saving...');
           await setProfileActive(!S.isActive);
           if (!S.isActive && S.session) {
             await sb.from('sessions').update({ expired: true }).eq('performer_id', S.user.id).eq('expired', false);
@@ -631,12 +768,11 @@
           }
           render();
         } catch (err) { showError(err.message || 'Could not update account status.'); }
-        finally { setBtn(btn, false); }
       };
     }
 
     function viewAccompliceSend() {
-      return '<div class="logo">HIDE & SEEK</div><div class="panel stack center"><h2>Accomplice Link</h2><div id="qr-box" class="qr-box"></div><p class="tiny" id="sess-url" style="word-break:break-all;"></p><div class="session-bar"><span>Expires in</span><span id="send-count">' + formatCountdown(sessionRemaining()) + '</span></div><div class="btn-row"><button id="copy-link" class="btn-primary">Copy Link</button><button id="go-perform-from-send" class="btn-outline">Go to Perform</button></div><button id="new-link" class="btn-outline btn-full">Generate New Link</button><button id="back-home-from-send" class="btn-outline btn-full">Back Home</button></div><div id="error-box" class="error"></div>';
+      return '<div class="logo">HIDE & SEEK</div><div class="panel stack center"><h2>Accomplice Link</h2><div id="qr-box" class="qr-box"></div><div id="send-count" class="timer-center">' + formatCountdown(sessionRemaining()) + '</div><div class="btn-row equal"><button id="copy-link" class="btn-primary">COPY LINK</button><button id="reset-link" class="btn-outline">RESET</button></div><button id="go-perform-from-send" class="btn-primary btn-full">PERFORM</button><button id="back-home-from-send" class="btn-outline btn-full">Back Home</button></div><div id="error-box" class="error"></div>';
     }
     async function bindAccompliceSend() {
       clearError();
@@ -645,15 +781,21 @@
         if (!S.isActive) throw new Error('Account is inactive. Activate account to use accomplice links.');
         if (!S.session || sessionRemaining() <= 0 || S.session.expired) await createNewSession();
         const sessUrl = APP_URL.replace(/\/$/, '') + '/accomplice.html?c=' + S.publicCode;
-        setText('sess-url', sessUrl);
         const q = el('qr-box'); q.innerHTML = '';
         new QRCode(q, { text: sessUrl, width: 200, height: 200, colorDark: '#000', colorLight: '#fff' });
-        el('copy-link').onclick = async () => { try { await navigator.clipboard.writeText(sessUrl); } catch (_) { window.prompt('Copy link:', sessUrl); } };
+        el('copy-link').onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(sessUrl);
+            showToast('Copied');
+          } catch (_) {
+            window.prompt('Copy link:', sessUrl);
+          }
+        };
         el('go-perform-from-send').onclick = () => go('perform');
         el('back-home-from-send').onclick = () => go('home');
-        el('new-link').onclick = async () => {
-          const btn = el('new-link');
-          setBtn(btn, true, 'Generating...');
+        el('reset-link').onclick = async () => {
+          const btn = el('reset-link');
+          setBtn(btn, true, 'Resetting...');
           try { await createNewSession(); render(); } catch (err) { showError(err.message || 'Could not create new session.'); }
           finally { setBtn(btn, false); }
         };
@@ -717,6 +859,88 @@
       if (!result || !result.parsed) return '';
       const diff = result.diff > 0 ? '+' + result.diff : String(result.diff);
       return '<div style="margin-top:6px;"><div class="perform-num" style="font-size:clamp(84px,22vw,150px);text-align:center;">' + diff + '</div><div class="perform-sub" style="text-align:center;">' + cardLabel(result.parsed.seeker.suit, result.parsed.seeker.value) + '</div><div class="perform-sub" style="text-align:center;">' + cardLabel(result.parsed.hider.suit, result.parsed.hider.value) + '</div></div>';
+    }
+    function viewSoloPerform() {
+      return '<div class="solo-screen"><button id="solo-back" class="perform-exit">EXIT</button><div id="solo-main"><div class="perform-awaiting">SOLO READY</div></div><div id="solo-status" class="solo-hint"></div></div><div id="error-box" class="error"></div>';
+    }
+    function startSoloListening() {
+      if (S.voice.listening) return;
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) {
+        showError('Speech recognition is not supported in this browser.');
+        return;
+      }
+      S.voice.parsed = null;
+      S.voice.result = null;
+      S.voice.transcript = '';
+      const rec = new SR();
+      rec.lang = 'en-US';
+      rec.continuous = true;
+      rec.interimResults = true;
+      S.voice.rec = rec;
+      S.voice.listening = true;
+      setText('solo-status', 'Listening...');
+      rec.onresult = (event) => {
+        let full = '';
+        for (let i = 0; i < event.results.length; i++) full += event.results[i][0].transcript + ' ';
+        S.voice.transcript = full.trim();
+        const heardEndTrigger = S.voice.transcript.toLowerCase().includes(S.voice.endTrigger);
+        if (!heardEndTrigger) return;
+        const parsed = parseVoiceCards(S.voice.transcript, S.voice.startTrigger, S.voice.endTrigger);
+        stopVoice();
+        if (parsed.error) {
+          setText('solo-status', parsed.error);
+          return;
+        }
+        const diff = calcDiff(parsed.seeker.suit, parsed.seeker.value, parsed.hider.suit, parsed.hider.value);
+        const signed = diff > 0 ? '+' + diff : String(diff);
+        const main = el('solo-main');
+        if (main) {
+          main.innerHTML = '<div class="perform-num">' + signed + '</div><div class="perform-sub">' + cardLabel(parsed.seeker.suit, parsed.seeker.value) + '</div><div class="perform-sub">' + cardLabel(parsed.hider.suit, parsed.hider.value) + '</div>';
+        }
+        setText('solo-status', 'Captured.');
+      };
+      rec.onerror = () => { S.voice.listening = false; setText('solo-status', 'Voice error'); };
+      rec.onend = () => {
+        const wasListening = S.voice.listening;
+        S.voice.listening = false;
+        if (wasListening && S.soloDelaySec === 0) setText('solo-status', 'Double tap lower half to start/stop');
+      };
+      rec.start();
+    }
+    function bindSoloPerform() {
+      const back = el('solo-back');
+      if (back) back.onclick = () => go('home');
+      const screen = document.querySelector('.solo-screen');
+      if (screen) {
+        screen.ondblclick = (e) => {
+          if (e.clientY < window.innerHeight / 2) return;
+          if (S.soloDelaySec === 0) {
+            if (S.voice.listening) {
+              stopVoice();
+              setText('solo-status', 'Stopped');
+            } else {
+              startSoloListening();
+            }
+          }
+        };
+      }
+      if (S.soloDelaySec > 0) {
+        let remaining = S.soloDelaySec;
+        setText('solo-status', 'Listening starts in ' + remaining + 's');
+        S.soloCountdownIntv = setInterval(() => {
+          remaining -= 1;
+          if (remaining <= 0) {
+            clearInterval(S.soloCountdownIntv);
+            S.soloCountdownIntv = null;
+            startSoloListening();
+          } else {
+            setText('solo-status', 'Listening starts in ' + remaining + 's');
+          }
+        }, 1000);
+      } else {
+        setText('solo-status', 'Double tap lower half to start/stop');
+      }
     }
     function viewVoice() {
       const parsed = S.voice.parsed;
@@ -811,6 +1035,7 @@
       if (S.view === 'home') { app.innerHTML = viewHome(); bindHome(); return; }
       if (S.view === 'accomplice-send') { app.innerHTML = viewAccompliceSend(); await bindAccompliceSend(); return; }
       if (S.view === 'perform') { app.innerHTML = viewPerform(); bindPerform(); return; }
+      if (S.view === 'solo-perform') { app.innerHTML = viewSoloPerform(); bindSoloPerform(); return; }
       if (S.view === 'voice') { app.innerHTML = viewVoice(); bindVoice(); return; }
       if (S.view === 'settings') { app.innerHTML = viewSettings(); bindSettings(); }
     }
