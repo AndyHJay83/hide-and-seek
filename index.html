@@ -523,9 +523,19 @@
       document.body.appendChild(n);
       setTimeout(() => { if (n.parentNode) n.parentNode.removeChild(n); }, 1300);
     }
+    function formatDelayLabel(sec) {
+      const s = Number(sec || 0);
+      if (s < 60) return s + 's';
+      const m = Math.floor(s / 60);
+      const rem = String(s % 60).padStart(2, '0');
+      return m + 'm ' + rem + 's';
+    }
+    function delayOptions() {
+      return Array.from({ length: 25 }, (_, i) => i * 5);
+    }
     function renderDelayPickerOptions() {
-      return Array.from({ length: 31 }, (_, i) =>
-        '<button class="delay-option' + (S.soloDelaySec === i ? ' sel' : '') + '" data-delay="' + i + '">' + i + '</button>'
+      return delayOptions().map((sec) =>
+        '<button class="delay-option' + (S.soloDelaySec === sec ? ' sel' : '') + '" data-delay="' + sec + '">' + formatDelayLabel(sec) + '</button>'
       ).join('');
     }
     function initDelayPicker() {
@@ -535,7 +545,7 @@
         const b = e.target.closest('button[data-delay]');
         if (!b) return;
         S.soloDelaySec = Number(b.dataset.delay || 0);
-        setText('delay-value', String(S.soloDelaySec) + 's');
+        setText('delay-value', formatDelayLabel(S.soloDelaySec));
         wrap.querySelectorAll('.delay-option').forEach((n) => n.classList.remove('sel'));
         b.classList.add('sel');
         b.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
@@ -812,7 +822,7 @@
     }
 
     function viewHome() {
-      return '<div class="home-header"><div class="logo" style="margin:12px 0 0;text-align:center;font-size:30px;">HIDE & SEEK</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button id="copy-public-link" class="code-chip">' + (S.publicCode || 'N/A') + '</button><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div><button id="go-solo" class="action-tile solo-btn">PERFORM SOLO<span class="solo-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a4 4 0 0 0 4-4V7a4 4 0 1 0-8 0v4.5a4 4 0 0 0 4 4Zm7-4a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 1 0-2 0 7 7 0 0 0 6 6.92V21H9a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2h-2v-2.58A7 7 0 0 0 19 11.5Z"/></svg></span></button><div class="delay-wrap"><div class="delay-row"><span>Solo Delay</span><strong id="delay-value">' + String(S.soloDelaySec) + 's</strong></div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div><div class="tiny center">0 seconds = manual lower-half double tap start/stop</div></div><button id="go-accomplice" class="action-tile">ACCOMPLICE</button><div class="active-toggle"><span>ACTIVE</span><button id="toggle-active" class="switch ' + (S.isActive ? 'on' : 'off') + '" aria-label="toggle active"></button></div></div><div id="error-box" class="error"></div>';
+      return '<div class="home-header"><div class="logo" style="margin:12px 0 0;text-align:center;font-size:30px;">HIDE & SEEK</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button id="copy-public-link" class="code-chip">' + (S.publicCode || 'N/A') + '</button><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div><button id="go-solo" class="action-tile solo-btn">PERFORM SOLO<span class="solo-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a4 4 0 0 0 4-4V7a4 4 0 1 0-8 0v4.5a4 4 0 0 0 4 4Zm7-4a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 1 0-2 0 7 7 0 0 0 6 6.92V21H9a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2h-2v-2.58A7 7 0 0 0 19 11.5Z"/></svg></span></button><div class="delay-wrap"><div class="delay-row"><span>Solo Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div><div class="tiny center">0 seconds = manual lower-half double tap start/stop</div></div><button id="go-accomplice" class="action-tile">ACCOMPLICE</button><div class="active-toggle"><span>ACTIVE</span><button id="toggle-active" class="switch ' + (S.isActive ? 'on' : 'off') + '" aria-label="toggle active"></button></div></div><div id="error-box" class="error"></div>';
     }
     function bindHome() {
       el('open-settings').onclick = () => go('settings');
