@@ -647,7 +647,7 @@
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
     });
-    const DEV_BYPASS_AUTH = true;
+    const DEV_BYPASS_AUTH = false;
     const SUIT_NAMES = ['Spades', 'Hearts', 'Clubs', 'Diamonds'];
     const VAL_NAMES = ['Ace', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Jack', 'Queen', 'King'];
     const VAL_SYMS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
