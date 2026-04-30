@@ -66,7 +66,7 @@ These are referenced by `manifest.json`.
    - Enter 6-digit OTP
 3. Home:
    - `PERFORM`: open waiting/result performance screen
-   - `ACCOMPLICE`: generate QR + share reusable code URL (`accomplice.html?c=PUBLICCODE`)
+   - `ACCOMPLICE`: generate QR + share reusable code URL (`/accomplice/PUBLICCODE`)
    - `VOICE MODE`: capture spoken cards and calculate result locally
    - Activate/Deactivate toggle to control whether accomplice transmissions are accepted
 4. Perform mode:
@@ -77,7 +77,7 @@ These are referenced by `manifest.json`.
 ### Accomplice Flow (`accomplice.html`)
 
 1. Opens URL `accomplice.html?s=<session-uuid>`
-   - Or reusable URL `accomplice.html?c=<PUBLICCODE>`
+   - Or reusable URL `/accomplice/<PUBLICCODE>`
 2. Validates session:
    - Exists
    - Not expired flag

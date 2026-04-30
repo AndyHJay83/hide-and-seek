@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/accomplice/:code",
+      "destination": "/accomplice.html?c=:code"
+    }
+  ]
+}

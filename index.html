@@ -958,7 +958,7 @@
         } catch (err) {
           return showError(err.message || 'Could not prepare active session.');
         }
-        const url = APP_URL.replace(/\/$/, '') + '/accomplice.html?c=' + S.publicCode;
+        const url = APP_URL.replace(/\/$/, '') + '/accomplice/' + S.publicCode;
         try {
           await navigator.clipboard.writeText(url);
           showToast('Copied');
@@ -979,7 +979,7 @@
       };
 
       if (S.showAccompliceInline) {
-        const sessUrl = APP_URL.replace(/\/$/, '') + '/accomplice.html?c=' + S.publicCode;
+        const sessUrl = APP_URL.replace(/\/$/, '') + '/accomplice/' + S.publicCode;
         const q = el('home-inline-qr');
         if (q) {
           q.innerHTML = '';
@@ -1036,7 +1036,7 @@
         if (!S.publicCode) throw new Error('No public code set on your profile.');
         if (!S.isActive) throw new Error('Account is inactive. Activate account to use accomplice links.');
         if (!S.session || sessionRemaining() <= 0 || S.session.expired) await createNewSession();
-        const sessUrl = APP_URL.replace(/\/$/, '') + '/accomplice.html?c=' + S.publicCode;
+        const sessUrl = APP_URL.replace(/\/$/, '') + '/accomplice/' + S.publicCode;
         const q = el('qr-box'); q.innerHTML = '';
         new QRCode(q, { text: sessUrl, width: 200, height: 200, colorDark: '#000', colorLight: '#fff' });
         el('copy-link').onclick = async () => {

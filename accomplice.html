@@ -367,6 +367,9 @@
       const params = new URLSearchParams(window.location.search);
       const sessionId = params.get('s');
       const code = (params.get('c') || '').toUpperCase().trim();
+      const pathCodeMatch = window.location.pathname.match(/\/accomplice\/([A-Za-z0-9]{1,})\/?$/);
+      const pathCode = pathCodeMatch ? pathCodeMatch[1].toUpperCase().trim() : '';
+      const resolvedCode = code || pathCode;
 
       try {
         let data = null;
@@ -374,8 +377,8 @@
           const r = await sb.from('sessions').select('*').eq('id', sessionId).maybeSingle();
           if (r.error) throw r.error;
           data = r.data;
-        } else if (code) {
-          const pr = await sb.from('profiles').select('id, is_active').eq('public_code', code).maybeSingle();
+        } else if (resolvedCode) {
+          const pr = await sb.from('profiles').select('id, is_active').eq('public_code', resolvedCode).maybeSingle();
           if (pr.error) throw pr.error;
           if (!pr.data) return screenError('Invalid Link', 'Unknown performer code.');
           if (!pr.data.is_active) return screenError('Performer Inactive', 'This performer is not currently accepting transmissions.');
