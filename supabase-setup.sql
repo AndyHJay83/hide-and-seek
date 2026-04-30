@@ -12,16 +12,34 @@ create table if not exists public.profiles (
   email text unique not null,
   public_code text unique not null,
   is_active boolean not null default true,
+  stack_type text not null default 'stebbins',
+  stebbins_start_suit integer not null default 2,
+  stebbins_start_value integer not null default 0,
   created_at timestamptz not null default now()
 );
 
 alter table public.profiles add column if not exists public_code text;
 alter table public.profiles add column if not exists is_active boolean not null default true;
+alter table public.profiles add column if not exists stack_type text not null default 'stebbins';
+alter table public.profiles add column if not exists stebbins_start_suit integer not null default 2;
+alter table public.profiles add column if not exists stebbins_start_value integer not null default 0;
 create unique index if not exists profiles_public_code_key on public.profiles(public_code);
 alter table public.profiles drop constraint if exists profiles_public_code_format_chk;
 alter table public.profiles
   add constraint profiles_public_code_format_chk
   check (public_code is null or public_code ~ '^[A-Z0-9]{6}$');
+alter table public.profiles drop constraint if exists profiles_stack_type_chk;
+alter table public.profiles
+  add constraint profiles_stack_type_chk
+  check (stack_type in ('stebbins', 'ndo', 'eight_kings', 'mnemonica', 'aronson', 'redford'));
+alter table public.profiles drop constraint if exists profiles_stebbins_suit_chk;
+alter table public.profiles
+  add constraint profiles_stebbins_suit_chk
+  check (stebbins_start_suit between 0 and 3);
+alter table public.profiles drop constraint if exists profiles_stebbins_value_chk;
+alter table public.profiles
+  add constraint profiles_stebbins_value_chk
+  check (stebbins_start_value between 0 and 12);
 
 create table if not exists public.sessions (
   id uuid primary key default uuid_generate_v4(),

@@ -510,6 +510,16 @@
     const DEV_BYPASS_AUTH = true;
     const SUIT_NAMES = ['Spades', 'Hearts', 'Clubs', 'Diamonds'];
     const VAL_NAMES = ['Ace', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Jack', 'Queen', 'King'];
+    const VAL_SYMS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+    const SUIT_LETTERS = ['S', 'H', 'C', 'D'];
+    const STACK_TYPES = ['stebbins', 'ndo', 'eight_kings', 'mnemonica', 'aronson', 'redford'];
+    const STEBBINS_SUIT_CYCLE = ['C', 'H', 'S', 'D'];
+    const STACK_CODES = {
+      eight_kings: ['8C','KH','3S','10D','2C','7H','9S','5D','QC','4H','AS','6D','JC','8H','KS','3D','10C','2H','7S','9D','5C','QH','4S','AD','6C','JH','8S','KD','3C','10H','2S','7D','9C','5H','QS','4D','AC','6H','JS','8D','KC','3H','10S','2D','7C','9H','5S','QD','4C','AH','6S','JD'],
+      mnemonica: ['4C','2H','7D','3C','4H','6D','AS','5H','9S','2S','QH','3D','QC','8H','6S','5S','9H','KC','2D','JH','3S','8S','6H','10C','5D','KD','2C','3H','8D','5C','KS','JD','8C','10S','KH','JC','7S','10H','AD','4S','7H','4D','AC','9C','JS','QD','7C','QS','10D','6C','AH','9D'],
+      aronson: ['JS','KC','5C','2H','9S','AS','3H','6C','8D','AC','10S','5H','2D','KD','7D','8C','3S','AD','7S','5S','QD','AH','8S','3D','7H','QH','5D','7C','4H','KH','4D','10D','JC','JH','10C','JD','4S','10H','6H','3C','2S','9H','KS','6S','4C','8H','9C','QS','6D','QC','2C','9D'],
+      redford: ['QH','2S','5D','8C','JH','KS','10H','7C','4D','AS','8H','5C','2D','QS','9H','6C','3D','10S','7H','4C','AD','JS','9S','6H','3C','KD','QD','10D','7S','4H','AC','JD','8S','5H','2C','2H','QC','9D','6S','3H','KC','4S','AH','JC','8D','5S','3S','KH','10C','7D','6D','9C']
+    };
     const PHRASES = {
       1: 'MIRACLE HIT (DIRECTLY NEXT TO)',
       2: 'SEE - START ON SEEKER',
@@ -549,8 +559,52 @@
     };
 
     function cardPos(suit, val) { return suit * 13 + val + 1; }
+    function cardCodeFromIdx(suit, val) { return VAL_SYMS[val] + SUIT_LETTERS[suit]; }
+    function idxSuitFromLetter(letter) { return SUIT_LETTERS.indexOf(letter); }
+    function buildNdoMap() {
+      const m = {};
+      for (let s = 0; s < 4; s++) {
+        for (let v = 0; v < 13; v++) {
+          m[cardCodeFromIdx(s, v)] = cardPos(s, v);
+        }
+      }
+      return m;
+    }
+    function buildFixedMap(codes) {
+      const m = {};
+      codes.forEach((code, i) => { m[code] = i + 1; });
+      return m;
+    }
+    function buildStebbinsMap(startSuitIdx, startValIdx) {
+      const startSuitLetter = SUIT_LETTERS[startSuitIdx];
+      const cycleStart = STEBBINS_SUIT_CYCLE.indexOf(startSuitLetter);
+      const suitStart = cycleStart >= 0 ? cycleStart : 0;
+      const m = {};
+      for (let i = 0; i < 52; i++) {
+        const val = (startValIdx + (i * 3)) % 13;
+        const suitLetter = STEBBINS_SUIT_CYCLE[(suitStart + i) % 4];
+        const suitIdx = idxSuitFromLetter(suitLetter);
+        m[cardCodeFromIdx(suitIdx, val)] = i + 1;
+      }
+      return m;
+    }
+    function getStackMap() {
+      if (S.stackType === 'ndo') return buildNdoMap();
+      if (S.stackType === 'stebbins') return buildStebbinsMap(S.stebbinsStartSuit, S.stebbinsStartValue);
+      return buildFixedMap(STACK_CODES[S.stackType] || []);
+    }
+    function stackCardPos(suit, val) {
+      const code = cardCodeFromIdx(suit, val);
+      const pos = getStackMap()[code];
+      return typeof pos === 'number' ? pos : null;
+    }
     function cardLabel(suit, val) { return VAL_NAMES[val] + ' of ' + SUIT_NAMES[suit]; }
-    function calcDiff(ss, sv, hs, hv) { return cardPos(hs, hv) - cardPos(ss, sv); }
+    function calcDiff(ss, sv, hs, hv) {
+      const seekerPos = stackCardPos(ss, sv);
+      const hiderPos = stackCardPos(hs, hv);
+      if (seekerPos == null || hiderPos == null) return 0;
+      return hiderPos - seekerPos;
+    }
     function isValidPublicCode(v) { return /^[A-Z0-9]{6}$/.test(v); }
     function phraseForDiff(diff) {
       const abs = Math.abs(diff);
@@ -564,6 +618,9 @@
       view: 'welcome', user: null, email: '',
       regCode: '', regEmail: '', regPublicCode: '',
       loginEmail: '', publicCode: '', isActive: true,
+      stackType: 'stebbins',
+      stebbinsStartSuit: 2,
+      stebbinsStartValue: 0,
       session: null, sessionChannel: null, sessionPoll: null, performResult: null,
       voice: {
         rec: null,
@@ -689,27 +746,41 @@
       if (error) throw error;
     }
     async function createProfile() {
-      const payload = { id: S.user.id, email: S.user.email.toLowerCase(), public_code: S.regPublicCode, is_active: true };
+      const payload = {
+        id: S.user.id,
+        email: S.user.email.toLowerCase(),
+        public_code: S.regPublicCode,
+        is_active: true,
+        stack_type: 'stebbins',
+        stebbins_start_suit: 2,
+        stebbins_start_value: 0
+      };
       const { error } = await sb.from('profiles').insert(payload);
       if (error) throw error;
     }
     async function loadProfile() {
       if (!S.user) return;
-      const { data, error } = await sb.from('profiles').select('email, public_code, is_active').eq('id', S.user.id).maybeSingle();
+      const { data, error } = await sb.from('profiles').select('email, public_code, is_active, stack_type, stebbins_start_suit, stebbins_start_value').eq('id', S.user.id).maybeSingle();
       if (error) throw error;
       if (data) {
         S.email = data.email || S.user.email || '';
         S.publicCode = data.public_code || '';
         S.isActive = data.is_active !== false;
+        S.stackType = STACK_TYPES.includes(data.stack_type) ? data.stack_type : 'stebbins';
+        S.stebbinsStartSuit = Number.isInteger(data.stebbins_start_suit) ? data.stebbins_start_suit : 2;
+        S.stebbinsStartValue = Number.isInteger(data.stebbins_start_value) ? data.stebbins_start_value : 0;
       }
     }
     async function ensureBypassProfile() {
-      const existing = await sb.from('profiles').select('id, email, public_code, is_active').eq('id', S.user.id).maybeSingle();
+      const existing = await sb.from('profiles').select('id, email, public_code, is_active, stack_type, stebbins_start_suit, stebbins_start_value').eq('id', S.user.id).maybeSingle();
       if (existing.error && existing.error.code !== 'PGRST116') throw existing.error;
       if (existing.data) {
         S.email = existing.data.email || S.user.email || 'guest@hideandseek.app';
         S.publicCode = existing.data.public_code || '';
         S.isActive = existing.data.is_active !== false;
+        S.stackType = STACK_TYPES.includes(existing.data.stack_type) ? existing.data.stack_type : 'stebbins';
+        S.stebbinsStartSuit = Number.isInteger(existing.data.stebbins_start_suit) ? existing.data.stebbins_start_suit : 2;
+        S.stebbinsStartValue = Number.isInteger(existing.data.stebbins_start_value) ? existing.data.stebbins_start_value : 0;
         return;
       }
       const code = (S.user.id || '').replace(/-/g, '').slice(0, 6).toUpperCase() || 'HIDE01';
@@ -718,17 +789,32 @@
         id: S.user.id,
         email: email,
         public_code: code,
-        is_active: true
+        is_active: true,
+        stack_type: 'stebbins',
+        stebbins_start_suit: 2,
+        stebbins_start_value: 0
       });
       if (ins.error) throw ins.error;
       S.email = email;
       S.publicCode = code;
       S.isActive = true;
+      S.stackType = 'stebbins';
+      S.stebbinsStartSuit = 2;
+      S.stebbinsStartValue = 0;
     }
     async function setProfileActive(nextActive) {
       const { error } = await sb.from('profiles').update({ is_active: nextActive }).eq('id', S.user.id);
       if (error) throw error;
       S.isActive = nextActive;
+    }
+    async function saveProfileStackSettings() {
+      const payload = {
+        stack_type: S.stackType,
+        stebbins_start_suit: S.stebbinsStartSuit,
+        stebbins_start_value: S.stebbinsStartValue
+      };
+      const { error } = await sb.from('profiles').update(payload).eq('id', S.user.id);
+      if (error) throw error;
     }
     function sessionAge() { if (!S.session) return null; return Date.now() - new Date(S.session.created_at).getTime(); }
     function sessionRemaining() { const age = sessionAge(); if (age == null) return 0; return Math.max(0, 30 * 60 * 1000 - age); }
@@ -1259,20 +1345,49 @@
     }
 
     function viewSettings() {
-      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.publicCode || 'N/A') + '</strong></p><div><label>Start Trigger</label><input id="settings-start-trigger" type="text" value="' + (S.voice.startTrigger || 'okay') + '"></div><div><label>End Trigger</label><input id="settings-end-trigger" type="text" value="' + (S.voice.endTrigger || 'amazing') + '"></div><div class="delay-wrap"><div class="delay-row"><span>Microphone Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div></div><button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
+      const stackOptions = [
+        ['stebbins', 'Si Stebbins'],
+        ['ndo', 'New Deck Order'],
+        ['eight_kings', 'Eight Kings'],
+        ['mnemonica', 'Mnemonica'],
+        ['aronson', 'Aronson'],
+        ['redford', 'Redford']
+      ].map((it) => '<option value="' + it[0] + '"' + (S.stackType === it[0] ? ' selected' : '') + '>' + it[1] + '</option>').join('');
+      const stebbinsCardBlock = '<div class="delay-wrap"><div class="delay-row"><span>Stebbins Position 1 Card</span><strong>' + cardLabel(S.stebbinsStartSuit, S.stebbinsStartValue) + '</strong></div><div class="btn-row"><select id="settings-stebbins-value" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + VAL_SYMS.map((v, i) => '<option value="' + i + '"' + (S.stebbinsStartValue === i ? ' selected' : '') + '>' + v + '</option>').join('') + '</select><select id="settings-stebbins-suit" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + SUIT_NAMES.map((n, i) => '<option value="' + i + '"' + (S.stebbinsStartSuit === i ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></div></div>';
+      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.publicCode || 'N/A') + '</strong></p><div><label>Card Stack</label><select id="settings-stack-type" style="width:100%;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + stackOptions + '</select></div><div id="settings-stebbins-wrap"' + (S.stackType === 'stebbins' ? '' : ' style="display:none;"') + '>' + stebbinsCardBlock + '</div><div><label>Start Trigger</label><input id="settings-start-trigger" type="text" value="' + (S.voice.startTrigger || 'okay') + '"></div><div><label>End Trigger</label><input id="settings-end-trigger" type="text" value="' + (S.voice.endTrigger || 'amazing') + '"></div><div class="delay-wrap"><div class="delay-row"><span>Microphone Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div></div><button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
     }
     function bindSettings() {
       el('settings-back').onclick = () => {
         const st = (el('settings-start-trigger').value || '').trim().toLowerCase();
         const et = (el('settings-end-trigger').value || '').trim().toLowerCase();
+        const stackType = el('settings-stack-type').value || 'stebbins';
+        const stebbinsSuit = Number(el('settings-stebbins-suit') ? el('settings-stebbins-suit').value : S.stebbinsStartSuit);
+        const stebbinsValue = Number(el('settings-stebbins-value') ? el('settings-stebbins-value').value : S.stebbinsStartValue);
         if (!st || !et) {
           showError('Start and end triggers are required.');
           return;
         }
+        if (!STACK_TYPES.includes(stackType)) {
+          showError('Invalid stack selection.');
+          return;
+        }
         S.voice.startTrigger = st;
         S.voice.endTrigger = et;
-        go('home');
+        S.stackType = stackType;
+        S.stebbinsStartSuit = Number.isInteger(stebbinsSuit) ? stebbinsSuit : 2;
+        S.stebbinsStartValue = Number.isInteger(stebbinsValue) ? stebbinsValue : 0;
+        saveProfileStackSettings().then(() => {
+          go('home');
+        }).catch((err) => showError(err.message || 'Could not save settings.'));
       };
+      const stackSel = el('settings-stack-type');
+      if (stackSel) {
+        stackSel.onchange = () => {
+          const wrap = el('settings-stebbins-wrap');
+          if (!wrap) return;
+          wrap.style.display = stackSel.value === 'stebbins' ? '' : 'none';
+        };
+      }
       initDelayPicker();
       el('logout-btn').onclick = async () => {
         const ok = window.confirm('Log out now?');
