@@ -781,7 +781,7 @@
       const parts = raw.split(',');
       const out = [];
       for (let i = 0; i < parts.length; i++) {
-        const code = normalizeCardCode(parts[i]);
+        const code = normalizeCardCode(parts[i].trim());
         if (code) out.push(code);
       }
       return out;
@@ -907,12 +907,20 @@
       if (picker) picker.style.display = 'none';
       S.cameraEditIndex = -1;
     }
+    function anthropicResponseText(data) {
+      const parts = (data && data.content) || [];
+      return parts
+        .filter((b) => b && b.type === 'text' && b.text)
+        .map((b) => b.text)
+        .join('')
+        .trim();
+    }
     async function callClaudeFrameReader(dataUrl) {
       const proxyUrl = (window.ANTHROPIC_PROXY_URL || '/api/claude-cards').trim();
       const apiKey = (window.ANTHROPIC_API_KEY || '').trim();
       const body = {
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 280,
+        max_tokens: 1024,
         system: 'You are reading playing card indices from a photo. List every card you can clearly read from left to right, using short notation: AS, KH, 10C, 2D etc. Black suits are spades and clubs, red suits are hearts and diamonds. Use colour to confirm the suit. Only return the card list, nothing else, comma separated.',
         messages: [{
           role: 'user',
@@ -928,9 +936,12 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
         });
-        if (!res.ok) throw new Error('Proxy request failed (' + res.status + ').');
-        const data = await res.json();
-        const text = data && data.text ? data.text : (((data || {}).content || [])[0] || {}).text || '';
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const msg = (data && data.error) ? String(data.error) : 'Proxy request failed (' + res.status + ').';
+          throw new Error(msg);
+        }
+        const text = data && data.text ? data.text : anthropicResponseText(data);
         return parseClaudeCardList(text);
       }
       if (!apiKey) throw new Error('Missing ANTHROPIC proxy/url config.');
@@ -943,9 +954,12 @@
         },
         body: JSON.stringify(body)
       });
-      if (!res.ok) throw new Error('Claude request failed (' + res.status + ').');
-      const data = await res.json();
-      const text = (((data || {}).content || [])[0] || {}).text || '';
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = (data && data.error && data.error.message) ? data.error.message : 'Claude request failed (' + res.status + ').';
+        throw new Error(msg);
+      }
+      const text = anthropicResponseText(data);
       return parseClaudeCardList(text);
     }
     async function extractFramesFromVideoBlob(blob, frameCount) {
@@ -954,25 +968,54 @@
       video.src = url;
       video.muted = true;
       video.playsInline = true;
+      video.preload = 'auto';
       await new Promise((resolve, reject) => {
-        video.onloadedmetadata = () => resolve();
-        video.onerror = () => reject(new Error('Unable to load recording.'));
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          video.removeEventListener('loadeddata', finish);
+          video.removeEventListener('loadedmetadata', finish);
+          video.removeEventListener('error', onErr);
+          resolve();
+        };
+        const onErr = () => {
+          if (settled) return;
+          settled = true;
+          video.removeEventListener('loadeddata', finish);
+          video.removeEventListener('loadedmetadata', finish);
+          video.removeEventListener('error', onErr);
+          reject(new Error('Unable to load recording.'));
+        };
+        video.addEventListener('loadeddata', finish);
+        video.addEventListener('loadedmetadata', finish);
+        video.addEventListener('error', onErr);
+        video.load();
       });
-      const dur = Math.max(1, video.duration || 10);
+      const dur = Math.max(0.5, video.duration || 10);
+      if (!video.videoWidth || !video.videoHeight) {
+        URL.revokeObjectURL(url);
+        throw new Error('Recording has no video dimensions. Try recording again or use Chrome on Android.');
+      }
       const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 1280;
-      canvas.height = video.videoHeight || 720;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
       const ctx = canvas.getContext('2d');
       const frames = [];
       for (let i = 0; i < frameCount; i++) {
-        const t = Math.min(dur - 0.05, (dur * (i + 1)) / (frameCount + 1));
+        const t = Math.min(Math.max(0.05, dur - 0.05), (dur * (i + 1)) / (frameCount + 1));
         await new Promise((resolve) => {
-          const handler = () => {
-            video.removeEventListener('seeked', handler);
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            video.removeEventListener('seeked', onSeeked);
             resolve();
           };
-          video.addEventListener('seeked', handler);
+          const onSeeked = () => finish();
+          video.addEventListener('seeked', onSeeked);
           video.currentTime = t;
+          setTimeout(finish, 800);
         });
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         frames.push(canvas.toDataURL('image/jpeg', 0.8));
@@ -2015,7 +2058,11 @@
             if (recordLeft) recordLeft.textContent = '0s';
             if (recordFill) recordFill.style.width = '100%';
           };
-          S.cameraRecorder.start();
+          try {
+            S.cameraRecorder.start(250);
+          } catch (_) {
+            S.cameraRecorder.start();
+          }
           if (status) status.textContent = 'Recording slow pan...';
           setBtn(recordBtn, true, 'Recording...');
           let left = 10;
@@ -2029,7 +2076,12 @@
             if (left <= 0) {
               clearInterval(S.cameraRecordIntv);
               S.cameraRecordIntv = null;
-              try { S.cameraRecorder.stop(); } catch (_) {}
+              try {
+                if (S.cameraRecorder && S.cameraRecorder.state === 'recording' && typeof S.cameraRecorder.requestData === 'function') {
+                  S.cameraRecorder.requestData();
+                }
+                if (S.cameraRecorder && S.cameraRecorder.state === 'recording') S.cameraRecorder.stop();
+              } catch (_) {}
             }
           }, 1000);
         };
@@ -2044,6 +2096,9 @@
           try {
             if (status) status.textContent = 'Extracting frames...';
             const blob = new Blob(S.cameraChunks, { type: (S.cameraRecorder && S.cameraRecorder.mimeType) || 'video/webm' });
+            if (!blob || blob.size < 2000) {
+              throw new Error('Recording file is empty or too small. Try again, or use Chrome on Android if Safari fails.');
+            }
             const frames = await extractFramesFromVideoBlob(blob, 10);
             const frameReadings = [];
             for (let i = 0; i < frames.length; i++) {
@@ -2059,6 +2114,10 @@
             renderCameraReview();
             setText('cam-count', String(S.cameraReview.order.filter(Boolean).length) + '/52');
             if (txt) txt.value = cameraReviewCsv(S.cameraReview.order);
+            const totalTok = frameReadings.reduce((n, row) => n + row.length, 0);
+            if (status && totalTok === 0) {
+              status.textContent = 'AI returned no readable cards. Check lighting, alignment in the guide strip, and that /api/claude-cards works on your host.';
+            }
           } catch (err) {
             showError(err.message || 'Processing failed.');
           } finally {
