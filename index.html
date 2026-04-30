@@ -454,6 +454,10 @@
       max-width: 900px;
       margin: 0 auto;
     }
+    .perform-phrase.neg {
+      color: #ff4d4d;
+      text-shadow: 0 0 28px rgba(255,77,77,0.5);
+    }
     .perform-sub { margin-top: 12px; color: var(--muted); font-size: 14px; }
     .perform-exit {
       position: fixed;
@@ -1068,9 +1072,10 @@
     function showPerformResult(data) {
       const diff = calcDiff(data.seeker_suit, data.seeker_value, data.hider_suit, data.hider_value);
       const phrase = phraseForDiff(diff);
+      const phraseClass = diff < 0 ? 'perform-phrase neg' : 'perform-phrase';
       const main = el('perform-main');
       if (!main) return;
-      main.innerHTML = '<div class="perform-phrase">' + phrase + '</div><div class="perform-sub">' + cardLabel(data.seeker_suit, data.seeker_value) + '</div><div class="perform-sub">' + cardLabel(data.hider_suit, data.hider_value) + '</div>';
+      main.innerHTML = '<div class="' + phraseClass + '">' + phrase + '</div><div class="perform-sub">' + cardLabel(data.seeker_suit, data.seeker_value) + '</div><div class="perform-sub">' + cardLabel(data.hider_suit, data.hider_value) + '</div>';
     }
     async function checkSessionForResult() {
       if (!S.session) return;
@@ -1110,7 +1115,8 @@
     function voiceResultMarkup(result) {
       if (!result || !result.parsed) return '';
       const phrase = phraseForDiff(result.diff);
-      return '<div style="margin-top:6px;"><div class="perform-phrase" style="font-size:clamp(22px,6vw,44px);text-align:center;">' + phrase + '</div><div class="perform-sub" style="text-align:center;">' + cardLabel(result.parsed.seeker.suit, result.parsed.seeker.value) + '</div><div class="perform-sub" style="text-align:center;">' + cardLabel(result.parsed.hider.suit, result.parsed.hider.value) + '</div></div>';
+      const phraseClass = result.diff < 0 ? 'perform-phrase neg' : 'perform-phrase';
+      return '<div style="margin-top:6px;"><div class="' + phraseClass + '" style="font-size:clamp(22px,6vw,44px);text-align:center;">' + phrase + '</div><div class="perform-sub" style="text-align:center;">' + cardLabel(result.parsed.seeker.suit, result.parsed.seeker.value) + '</div><div class="perform-sub" style="text-align:center;">' + cardLabel(result.parsed.hider.suit, result.parsed.hider.value) + '</div></div>';
     }
     function viewSoloPerform() {
       return '<div class="solo-screen"><button id="solo-back" class="perform-exit">EXIT</button><div id="solo-main"><div class="perform-awaiting">SOLO READY</div></div><div id="solo-status" class="solo-hint"></div></div><div id="error-box" class="error"></div>';
@@ -1146,9 +1152,10 @@
         }
         const diff = calcDiff(parsed.seeker.suit, parsed.seeker.value, parsed.hider.suit, parsed.hider.value);
         const phrase = phraseForDiff(diff);
+        const phraseClass = diff < 0 ? 'perform-phrase neg' : 'perform-phrase';
         const main = el('solo-main');
         if (main) {
-          main.innerHTML = '<div class="perform-phrase">' + phrase + '</div><div class="perform-sub">' + cardLabel(parsed.seeker.suit, parsed.seeker.value) + '</div><div class="perform-sub">' + cardLabel(parsed.hider.suit, parsed.hider.value) + '</div>';
+          main.innerHTML = '<div class="' + phraseClass + '">' + phrase + '</div><div class="perform-sub">' + cardLabel(parsed.seeker.suit, parsed.seeker.value) + '</div><div class="perform-sub">' + cardLabel(parsed.hider.suit, parsed.hider.value) + '</div>';
         }
         setText('solo-status', 'Captured.');
       };
