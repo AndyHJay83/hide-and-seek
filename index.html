@@ -422,6 +422,31 @@
       font-size: 13px;
       max-width: 320px;
     }
+    .card-chip-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-start;
+      max-height: 180px;
+      overflow-y: auto;
+      border: 1px solid var(--border-mid);
+      border-radius: 10px;
+      padding: 10px;
+      background: #0a0a0a;
+    }
+    .card-chip {
+      border: 1px solid var(--border-mid);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 13px;
+      letter-spacing: 0.06em;
+      color: #fff;
+    }
+    .card-chip.red {
+      color: #ff5f5f;
+      border-color: rgba(255,95,95,0.6);
+      box-shadow: 0 0 8px rgba(255,95,95,0.25);
+    }
     .qr-box {
       width: 220px;
       height: 220px;
@@ -578,7 +603,12 @@
     }
     function normalizeCardCode(raw) {
       if (!raw) return null;
-      const t = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const t = raw
+        .toUpperCase()
+        .replace(/O/g, '0')
+        .replace(/I/g, '1')
+        .replace(/L/g, '1')
+        .replace(/[^A-Z0-9]/g, '');
       if (t.length < 2 || t.length > 3) return null;
       const suit = t.slice(-1);
       let val = t.slice(0, -1);
@@ -590,10 +620,30 @@
       if (!VAL_SYMS.includes(val)) return null;
       return val + suit;
     }
+    function suitLetterForCode(code) {
+      return code ? code.slice(-1) : '';
+    }
+    function isRedCode(code) {
+      const s = suitLetterForCode(code);
+      return s === 'H' || s === 'D';
+    }
+    function renderDetectedCardChips(codes) {
+      const wrap = el('cam-detected-cards');
+      if (!wrap) return;
+      if (!codes || !codes.length) {
+        wrap.innerHTML = '<span class="tiny">No valid cards detected yet.</span>';
+        return;
+      }
+      wrap.innerHTML = codes.map((c) => '<span class="card-chip' + (isRedCode(c) ? ' red' : '') + '">' + c + '</span>').join('');
+    }
     function parseCardCodesFromText(text) {
       if (!text) return [];
       const cleaned = text
         .toUpperCase()
+        .replace(/\bSPADES?\b/g, ' S ')
+        .replace(/\bHEARTS?\b/g, ' H ')
+        .replace(/\bCLUBS?\b/g, ' C ')
+        .replace(/\bDIAMONDS?\b/g, ' D ')
         .replace(/[\u2660\u2665\u2663\u2666]/g, ' ')
         .replace(/[^A-Z0-9\s]/g, ' ')
         .replace(/\s+/g, ' ')
@@ -1268,9 +1318,11 @@
         '<video id="cam-video" autoplay playsinline style="width:100%;border-radius:12px;background:#000;min-height:220px;"></video>' +
         '<canvas id="cam-canvas" style="display:none;"></canvas>' +
         '<div class="btn-row"><button id="cam-capture" class="btn-primary">Capture & Scan</button><button id="cam-back" class="btn-outline">Back</button></div>' +
-        '<textarea id="cam-ocr-text" style="width:100%;min-height:100px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:14px;padding:10px;" placeholder="OCR result..."></textarea>' +
+        '<div class="delay-row"><span>Detected Cards</span><strong id="cam-count">0</strong></div>' +
+        '<div id="cam-detected-cards" class="card-chip-wrap"><span class="tiny">No valid cards detected yet.</span></div>' +
+        '<textarea id="cam-ocr-text" style="width:100%;min-height:72px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:12px;padding:10px;" placeholder="Raw OCR text (editable fallback)..."></textarea>' +
         '<button id="cam-use" class="btn-primary btn-full">Use As Custom Stack</button>' +
-        '<div class="tiny" id="cam-status">Aim at the spread so top-left indices are visible.</div>' +
+        '<div class="tiny" id="cam-status">Aim at the spread so top-left indices are visible. Scan, then verify detected cards.</div>' +
         '</div><div id="error-box" class="error"></div>';
     }
     async function bindCameraStack() {
@@ -1308,7 +1360,9 @@
             txt.value = ocr;
             const parsed = parseCardCodesFromText(ocr);
             S.cameraParsedCodes = parsed;
-            if (status) status.textContent = 'Detected ' + parsed.length + ' card codes.';
+            renderDetectedCardChips(parsed);
+            setText('cam-count', String(Array.from(new Set(parsed)).length));
+            if (status) status.textContent = 'Detected ' + parsed.length + ' card tokens. Confirm before saving.';
           } catch (err) {
             showError('OCR scan failed.');
           } finally {
@@ -1322,6 +1376,8 @@
           const raw = (el('cam-ocr-text').value || '').trim();
           const parsed = parseCardCodesFromText(raw);
           const unique = Array.from(new Set(parsed));
+          renderDetectedCardChips(unique);
+          setText('cam-count', String(unique.length));
           if (unique.length !== 52) {
             showError('Need exactly 52 unique valid card codes to save custom stack.');
             return;
