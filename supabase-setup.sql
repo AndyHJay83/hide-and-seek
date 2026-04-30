@@ -31,7 +31,7 @@ create unique index if not exists profiles_public_code_key on public.profiles(pu
 alter table public.profiles drop constraint if exists profiles_public_code_format_chk;
 alter table public.profiles
   add constraint profiles_public_code_format_chk
-  check (public_code is null or public_code ~ '^[A-Z0-9]{6}$');
+  check (public_code is null or public_code ~ '^[0-9]$');
 alter table public.profiles drop constraint if exists profiles_stack_type_chk;
 alter table public.profiles
   add constraint profiles_stack_type_chk
@@ -98,8 +98,7 @@ for insert
 to authenticated
 with check (
   id = auth.uid()
-  and public_code = upper(public_code)
-  and public_code ~ '^[A-Z0-9]{6}$'
+  and public_code ~ '^[0-9]$'
 );
 
 drop policy if exists "profiles_auth_update_own" on public.profiles;

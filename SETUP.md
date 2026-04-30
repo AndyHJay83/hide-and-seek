@@ -16,7 +16,7 @@
 6. Confirm realtime is active for `sessions`:
    - `supabase-setup.sql` includes `alter publication supabase_realtime add table public.sessions`.
 7. New profile fields:
-   - `public_code` (unique 6-char alphanumeric link code)
+   - `public_code` (unique single-digit code `0-9`)
    - `is_active` (performer can activate/deactivate live receiving)
 
 ## 2) GitHub Pages Setup
@@ -58,7 +58,7 @@ These are referenced by `manifest.json`.
 1. Register:
    - Enter purchase code
    - Enter email
-   - Choose permanent public code (example: `1A2B3C`)
+   - Choose permanent public code (example: `7`)
    - Enter 6-digit OTP
    - App creates profile then redeems code
 2. Login:
@@ -107,7 +107,7 @@ These are referenced by `manifest.json`.
   - Confirm URL contains `?s=<uuid>` or `?c=<PUBLICCODE>`.
   - Confirm session still within 30 minutes and not marked expired.
 - Public code conflict on registration:
-  - Code must be exactly 6 uppercase letters/numbers.
+  - Code must be exactly 1 digit (`0-9`).
   - Code must be unique across all users.
 - Voice mode not working:
   - Use Chrome-based browsers for best `SpeechRecognition` support.
