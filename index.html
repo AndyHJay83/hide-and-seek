@@ -447,6 +447,85 @@
       border-color: rgba(255,95,95,0.6);
       box-shadow: 0 0 8px rgba(255,95,95,0.25);
     }
+    .entry-steps {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .entry-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      border: 1px solid var(--border-mid);
+      background: transparent;
+    }
+    .entry-dot.active {
+      background: #fff;
+      border-color: #fff;
+      box-shadow: var(--glow-xs);
+    }
+    .entry-dot.done {
+      background: rgba(255,255,255,0.55);
+      border-color: rgba(255,255,255,0.7);
+    }
+    .entry-preview {
+      border: 1px solid var(--border-mid);
+      background: var(--surface-2);
+      border-radius: 12px;
+      min-height: 60px;
+      padding: 10px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 12px;
+      font-size: 15px;
+    }
+    .entry-val-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .entry-card-btn {
+      border: 1px solid var(--border-mid);
+      background: transparent;
+      color: #fff;
+      border-radius: 10px;
+      min-height: 50px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .entry-card-btn.king { grid-column: span 4; }
+    .entry-card-btn.sel {
+      border-color: rgba(255,255,255,0.7);
+      background: rgba(255,255,255,0.12);
+      box-shadow: var(--glow-xs);
+    }
+    .entry-suit-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .entry-suit-btn {
+      border: 1px solid var(--border-mid);
+      background: transparent;
+      color: #fff;
+      border-radius: 10px;
+      min-height: 56px;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      gap: 1px;
+      font-size: 13px;
+    }
+    .entry-suit-btn span:first-child { font-size: 22px; line-height: 1; }
+    .entry-suit-btn.sel {
+      border-color: rgba(255,255,255,0.7);
+      background: rgba(255,255,255,0.12);
+      box-shadow: var(--glow-xs);
+    }
     .qr-box {
       width: 220px;
       height: 220px;
@@ -705,9 +784,16 @@
       view: 'welcome', user: null, email: '',
       regCode: '', regEmail: '', regPublicCode: '',
       loginEmail: '', publicCode: '', isActive: true,
+      performInputMethod: 'voice',
       stackType: 'stebbins',
       stebbinsStartSuit: 2,
       stebbinsStartValue: 0,
+      selfEntry: {
+        step: 1,
+        seeker: { suit: null, value: null },
+        hider: { suit: null, value: null },
+        result: null
+      },
       customStackCodes: [],
       cameraStream: null,
       cameraParsedCodes: [],
@@ -1116,10 +1202,20 @@
     }
 
     function viewHome() {
-      return '<div class="home-header"><div class="logo" style="margin:12px 0 0;text-align:center;font-size:30px;">HIDE & SEEK</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button id="copy-public-link" class="code-chip">' + (S.publicCode || 'N/A') + '</button><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div><button id="go-solo" class="action-tile solo-btn">PERFORM SOLO<span class="solo-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a4 4 0 0 0 4-4V7a4 4 0 1 0-8 0v4.5a4 4 0 0 0 4 4Zm7-4a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 1 0-2 0 7 7 0 0 0 6 6.92V21H9a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2h-2v-2.58A7 7 0 0 0 19 11.5Z"/></svg></span></button><button id="go-accomplice" class="action-tile">ACCOMPLICE</button>' + buildInlineAccompliceBlock() + '<div class="active-toggle"><span class="active-label">ACTIVE</span><button id="toggle-active" class="switch ' + (S.isActive ? 'on' : 'off') + '" aria-label="toggle active"></button><div class="toggle-state ' + (S.isActive ? 'on' : '') + '">' + (S.isActive ? 'LIVE' : 'OFF') + '</div></div></div><div id="error-box" class="error"></div>';
+      return '<div class="home-header"><div class="logo" style="margin:12px 0 0;text-align:center;font-size:30px;">HIDE & SEEK</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button id="copy-public-link" class="code-chip">' + (S.publicCode || 'N/A') + '</button><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div><button id="go-perform" class="action-tile solo-btn">PERFORM<span class="solo-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a4 4 0 0 0 4-4V7a4 4 0 1 0-8 0v4.5a4 4 0 0 0 4 4Zm7-4a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 1 0-2 0 7 7 0 0 0 6 6.92V21H9a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2h-2v-2.58A7 7 0 0 0 19 11.5Z"/></svg></span></button><div><label>Input Method</label><select id="perform-input-method" style="width:100%;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;"><option value="voice"' + (S.performInputMethod === 'voice' ? ' selected' : '') + '>VOICE</option><option value="keypad"' + (S.performInputMethod === 'keypad' ? ' selected' : '') + '>KEYPAD</option></select></div><button id="go-accomplice" class="action-tile">ACCOMPLICE</button>' + buildInlineAccompliceBlock() + '<div class="active-toggle"><span class="active-label">ACTIVE</span><button id="toggle-active" class="switch ' + (S.isActive ? 'on' : 'off') + '" aria-label="toggle active"></button><div class="toggle-state ' + (S.isActive ? 'on' : '') + '">' + (S.isActive ? 'LIVE' : 'OFF') + '</div></div></div><div id="error-box" class="error"></div>';
     }
     function bindHome() {
       el('open-settings').onclick = () => go('settings');
+      el('go-perform').onclick = () => {
+        if ((el('perform-input-method') ? el('perform-input-method').value : S.performInputMethod) === 'keypad') {
+          S.performInputMethod = 'keypad';
+          S.selfEntry = { step: 1, seeker: { suit: null, value: null }, hider: { suit: null, value: null }, result: null };
+          go('self-keypad');
+          return;
+        }
+        S.performInputMethod = 'voice';
+        go('solo-perform');
+      };
       el('go-accomplice').onclick = async () => {
         clearError();
         try {
@@ -1134,7 +1230,12 @@
           showError(err.message || 'Could not open accomplice tools.');
         }
       };
-      el('go-solo').onclick = () => go('solo-perform');
+      const methodSel = el('perform-input-method');
+      if (methodSel) {
+        methodSel.onchange = () => {
+          S.performInputMethod = methodSel.value || 'voice';
+        };
+      }
       initDelayPicker();
       el('copy-public-link').onclick = async () => {
         clearError();
@@ -1309,6 +1410,129 @@
     }
     function viewSoloPerform() {
       return '<div class="solo-screen"><button id="solo-back" class="perform-exit">EXIT</button><div id="solo-main"><div class="perform-awaiting">SOLO READY</div></div><div id="solo-status" class="solo-hint"></div></div><div id="error-box" class="error"></div>';
+    }
+    function viewSelfKeypad() {
+      return '<div class="logo">HIDE & SEEK</div><div id="self-keypad-root" class="panel stack"></div><div id="error-box" class="error"></div>';
+    }
+    function buildSelfStepDots(step) {
+      const dot = (i) => {
+        let cls = 'entry-dot';
+        if (step === i) cls += ' active';
+        if (step > i) cls += ' done';
+        return '<div class="' + cls + '"></div>';
+      };
+      return '<div class="entry-steps">' + dot(1) + dot(2) + dot(3) + '</div>';
+    }
+    function buildSelfCardStep(role) {
+      const isSeeker = role === 'seeker';
+      const card = S.selfEntry[role];
+      const preview = (card.suit == null || card.value == null) ? 'Select value and suit' : cardLabel(card.suit, card.value);
+      const nextDisabled = card.suit == null || card.value == null ? 'disabled' : '';
+      return '' +
+        buildSelfStepDots(S.selfEntry.step) +
+        '<h2 class="center">' + (isSeeker ? 'SEEKER' : 'HIDER') + '</h2>' +
+        '<div class="entry-preview">' + preview + '</div>' +
+        '<div id="self-val-grid" class="entry-val-grid">' +
+        VAL_SYMS.map((v, i) => {
+          const king = i === 12 ? ' king' : '';
+          const sel = card.value === i ? ' sel' : '';
+          return '<button class="entry-card-btn' + king + sel + '" data-v="' + i + '">' + v + '</button>';
+        }).join('') +
+        '</div>' +
+        '<div id="self-suit-row" class="entry-suit-row">' +
+        SUIT_NAMES.map((n, i) => {
+          const sel = card.suit === i ? ' sel' : '';
+          return '<button class="entry-suit-btn' + sel + '" data-s="' + i + '"><span>' + ['♠','♥','♣','♦'][i] + '</span><span>' + n + '</span></button>';
+        }).join('') +
+        '</div>' +
+        '<button id="self-next" class="btn-primary btn-full" ' + nextDisabled + '>' + (isSeeker ? 'Next: Hider Card' : 'Next: Set') + '</button>' +
+        '<button id="self-back-home" class="btn-outline btn-full">Back Home</button>';
+    }
+    function buildSelfConfirm() {
+      return '' +
+        buildSelfStepDots(3) +
+        '<h2 class="center">Confirm</h2>' +
+        '<div class="entry-preview">SEEKER: ' + cardLabel(S.selfEntry.seeker.suit, S.selfEntry.seeker.value) + '</div>' +
+        '<div class="entry-preview">HIDER: ' + cardLabel(S.selfEntry.hider.suit, S.selfEntry.hider.value) + '</div>' +
+        '<button id="self-set" class="btn-primary btn-full">Set</button>' +
+        '<button id="self-edit" class="btn-outline btn-full">Edit</button>' +
+        '<button id="self-back-home" class="btn-outline btn-full">Back Home</button>';
+    }
+    function buildSelfPeek() {
+      const d = calcDiff(S.selfEntry.seeker.suit, S.selfEntry.seeker.value, S.selfEntry.hider.suit, S.selfEntry.hider.value);
+      const phrase = phraseForDiff(d);
+      const cls = d < 0 ? 'perform-phrase neg' : 'perform-phrase';
+      return '' +
+        '<div class="' + cls + '" style="text-align:center;">' + phrase + '</div>' +
+        '<div class="perform-sub center">' + cardLabel(S.selfEntry.seeker.suit, S.selfEntry.seeker.value) + '</div>' +
+        '<div class="perform-sub center">' + cardLabel(S.selfEntry.hider.suit, S.selfEntry.hider.value) + '</div>' +
+        '<button id="self-again" class="btn-outline btn-full" style="margin-top:12px;">Transmit Again?</button>' +
+        '<button id="self-back-home" class="btn-outline btn-full">Back Home</button>';
+    }
+    function renderSelfKeypadBody() {
+      const root = el('self-keypad-root');
+      if (!root) return;
+      if (S.selfEntry.result) {
+        root.innerHTML = buildSelfPeek();
+      } else if (S.selfEntry.step === 3) {
+        root.innerHTML = buildSelfConfirm();
+      } else if (S.selfEntry.step === 2) {
+        root.innerHTML = buildSelfCardStep('hider');
+      } else {
+        root.innerHTML = buildSelfCardStep('seeker');
+      }
+      const back = el('self-back-home');
+      if (back) back.onclick = () => go('home');
+
+      const valGrid = el('self-val-grid');
+      if (valGrid) {
+        valGrid.onclick = (e) => {
+          const b = e.target.closest('button[data-v]');
+          if (!b) return;
+          const role = S.selfEntry.step === 1 ? 'seeker' : 'hider';
+          S.selfEntry[role].value = Number(b.dataset.v);
+          renderSelfKeypadBody();
+        };
+      }
+      const suitRow = el('self-suit-row');
+      if (suitRow) {
+        suitRow.onclick = (e) => {
+          const b = e.target.closest('button[data-s]');
+          if (!b) return;
+          const role = S.selfEntry.step === 1 ? 'seeker' : 'hider';
+          S.selfEntry[role].suit = Number(b.dataset.s);
+          renderSelfKeypadBody();
+        };
+      }
+      const next = el('self-next');
+      if (next) {
+        next.onclick = () => {
+          const role = S.selfEntry.step === 1 ? 'seeker' : 'hider';
+          const c = S.selfEntry[role];
+          if (c.suit == null || c.value == null) return;
+          if (S.selfEntry.step === 1) S.selfEntry.step = 2;
+          else S.selfEntry.step = 3;
+          renderSelfKeypadBody();
+        };
+      }
+      const edit = el('self-edit');
+      if (edit) edit.onclick = () => { S.selfEntry.step = 1; renderSelfKeypadBody(); };
+      const set = el('self-set');
+      if (set) set.onclick = () => {
+        S.selfEntry.result = {
+          seeker: { suit: S.selfEntry.seeker.suit, value: S.selfEntry.seeker.value },
+          hider: { suit: S.selfEntry.hider.suit, value: S.selfEntry.hider.value }
+        };
+        renderSelfKeypadBody();
+      };
+      const again = el('self-again');
+      if (again) again.onclick = () => {
+        S.selfEntry = { step: 1, seeker: { suit: null, value: null }, hider: { suit: null, value: null }, result: null };
+        renderSelfKeypadBody();
+      };
+    }
+    function bindSelfKeypad() {
+      renderSelfKeypadBody();
     }
     function viewCameraStack() {
       return '' +
@@ -1610,6 +1834,7 @@
       if (S.view === 'accomplice-send') { app.innerHTML = viewAccompliceSend(); await bindAccompliceSend(); return; }
       if (S.view === 'perform') { app.innerHTML = viewPerform(); bindPerform(); return; }
       if (S.view === 'solo-perform') { app.innerHTML = viewSoloPerform(); bindSoloPerform(); return; }
+      if (S.view === 'self-keypad') { app.innerHTML = viewSelfKeypad(); bindSelfKeypad(); return; }
       if (S.view === 'voice') { app.innerHTML = viewVoice(); bindVoice(); return; }
       if (S.view === 'camera-stack') { app.innerHTML = viewCameraStack(); await bindCameraStack(); return; }
       if (S.view === 'settings') { app.innerHTML = viewSettings(); bindSettings(); }
