@@ -11,6 +11,8 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text unique not null,
   public_code text unique not null,
+  pin_hash text,
+  pin_salt text,
   is_active boolean not null default true,
   short_deal boolean not null default false,
   static_stack boolean not null default false,
@@ -22,6 +24,8 @@ create table if not exists public.profiles (
 );
 
 alter table public.profiles add column if not exists public_code text;
+alter table public.profiles add column if not exists pin_hash text;
+alter table public.profiles add column if not exists pin_salt text;
 alter table public.profiles add column if not exists is_active boolean not null default true;
 alter table public.profiles add column if not exists short_deal boolean not null default false;
 alter table public.profiles add column if not exists static_stack boolean not null default false;

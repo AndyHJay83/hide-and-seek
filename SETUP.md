@@ -8,8 +8,8 @@
    - Either run manual inserts in SQL, or use the commented seed block in `supabase-setup.sql`.
    - Store and compare all codes in uppercase format (for example `HAS-ABCD-0001`).
 4. In Supabase Authentication:
-   - Enable Email OTP login.
-   - Disable magic link if you want OTP-only behavior.
+   - Enable Anonymous sign-in (used for persistent app identity).
+   - Email OTP is no longer required by default app flow.
 5. Configure SMTP for reliable delivery:
    - Recommended: Resend free tier SMTP.
    - In Supabase Auth > SMTP Settings, add your Resend SMTP host/user/pass and sender email.
@@ -17,6 +17,7 @@
    - `supabase-setup.sql` includes `alter publication supabase_realtime add table public.sessions`.
 7. New profile fields:
    - `public_code` (unique single-digit code `0-9`)
+   - `pin_hash` and `pin_salt` (PIN unlock data)
    - `is_active` (performer can activate/deactivate live receiving)
 
 ## 2) GitHub Pages Setup
@@ -73,11 +74,10 @@ Notes:
    - Enter purchase code
    - Enter email
    - Choose permanent public code (example: `7`)
-   - Enter 6-digit OTP
+   - Set 6-digit PIN
    - App creates profile then redeems code
 2. Login:
-   - Enter existing profile email
-   - Enter 6-digit OTP
+   - Enter 6-digit PIN only on the same device
 3. Home:
    - `PERFORM`: open waiting/result performance screen
    - `ACCOMPLICE`: generate QR + share reusable code URL (`/accomplice/PUBLICCODE`)
