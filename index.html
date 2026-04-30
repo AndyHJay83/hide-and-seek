@@ -1063,7 +1063,17 @@
       if (shortest < -26) shortest += 52;
       return shortest;
     }
-    function isValidPublicCode(v) { return /^[0-9]$/.test(v); }
+    /** Single ASCII digit 0-9; trims whitespace; maps fullwidth digits ０-９ only. */
+    function normalizePublicCode(raw) {
+      const s = String(raw == null ? '' : raw).trim();
+      if (s.length !== 1) return '';
+      const cp = s.codePointAt(0);
+      const ascii = (cp >= 0xFF10 && cp <= 0xFF19)
+        ? String.fromCharCode(cp - 0xFF10 + 0x30)
+        : s;
+      return /^[0-9]$/.test(ascii) ? ascii : '';
+    }
+    function isValidPublicCode(v) { return normalizePublicCode(v) !== ''; }
     function phraseForDiff(diff) {
       const abs = Math.abs(diff);
       if (!PHRASES[abs]) {
@@ -1326,12 +1336,14 @@
       if (error) throw error;
     }
     async function createProfile() {
+      const publicCode = normalizePublicCode(S.regPublicCode);
+      if (!publicCode) throw new Error('Public code must be exactly one digit (0-9).');
       const salt = randomHex(16);
       const hash = await makePinHash(S.regPin, salt);
       const payload = {
         id: S.user.id,
         email: (S.regEmail || '').toLowerCase(),
-        public_code: S.regPublicCode,
+        public_code: publicCode,
         pin_hash: hash,
         pin_salt: salt,
         is_active: true,
@@ -1575,7 +1587,7 @@
         const btn = el('create-account-btn');
         if (!btn || btn.disabled) return;
         const email = (el('reg-email-input').value || '').trim().toLowerCase();
-        const publicCode = (el('reg-public-code-input').value || '').trim();
+        const publicCode = normalizePublicCode(el('reg-public-code-input').value);
         const pin = (el('reg-pin-input').value || '').trim();
         const pinConfirm = (el('reg-pin-confirm-input').value || '').trim();
         if (!email) return showError('Enter an email.');
