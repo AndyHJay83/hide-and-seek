@@ -502,6 +502,7 @@
   <div id="app" class="app"></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="./config.js"></script>
   <script>
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -512,7 +513,7 @@
     const VAL_NAMES = ['Ace', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Jack', 'Queen', 'King'];
     const VAL_SYMS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
     const SUIT_LETTERS = ['S', 'H', 'C', 'D'];
-    const STACK_TYPES = ['stebbins', 'ndo', 'eight_kings', 'mnemonica', 'aronson', 'redford'];
+    const STACK_TYPES = ['stebbins', 'ndo', 'eight_kings', 'mnemonica', 'aronson', 'redford', 'custom'];
     const STEBBINS_SUIT_CYCLE = ['C', 'H', 'S', 'D'];
     const STACK_CODES = {
       eight_kings: ['8C','KH','3S','10D','2C','7H','9S','5D','QC','4H','AS','6D','JC','8H','KS','3D','10C','2H','7S','9D','5C','QH','4S','AD','6C','JH','8S','KD','3C','10H','2S','7D','9C','5H','QS','4D','AC','6H','JS','8D','KC','3H','10S','2D','7C','9H','5S','QD','4C','AH','6S','JD'],
@@ -575,6 +576,41 @@
       codes.forEach((code, i) => { m[code] = i + 1; });
       return m;
     }
+    function normalizeCardCode(raw) {
+      if (!raw) return null;
+      const t = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (t.length < 2 || t.length > 3) return null;
+      const suit = t.slice(-1);
+      let val = t.slice(0, -1);
+      if (!SUIT_LETTERS.includes(suit)) return null;
+      if (val === '1') val = 'A';
+      if (val === '11') val = 'J';
+      if (val === '12') val = 'Q';
+      if (val === '13') val = 'K';
+      if (!VAL_SYMS.includes(val)) return null;
+      return val + suit;
+    }
+    function parseCardCodesFromText(text) {
+      if (!text) return [];
+      const cleaned = text
+        .toUpperCase()
+        .replace(/[\u2660\u2665\u2663\u2666]/g, ' ')
+        .replace(/[^A-Z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!cleaned) return [];
+      const toks = cleaned.split(' ');
+      const out = [];
+      for (let i = 0; i < toks.length; i++) {
+        const one = normalizeCardCode(toks[i]);
+        if (one) { out.push(one); continue; }
+        if (i + 1 < toks.length) {
+          const two = normalizeCardCode(toks[i] + toks[i + 1]);
+          if (two) { out.push(two); i += 1; }
+        }
+      }
+      return out;
+    }
     function buildStebbinsMap(startSuitIdx, startValIdx) {
       const startSuitLetter = SUIT_LETTERS[startSuitIdx];
       const cycleStart = STEBBINS_SUIT_CYCLE.indexOf(startSuitLetter);
@@ -591,6 +627,7 @@
     function getStackMap() {
       if (S.stackType === 'ndo') return buildNdoMap();
       if (S.stackType === 'stebbins') return buildStebbinsMap(S.stebbinsStartSuit, S.stebbinsStartValue);
+      if (S.stackType === 'custom') return buildFixedMap(S.customStackCodes || []);
       return buildFixedMap(STACK_CODES[S.stackType] || []);
     }
     function stackCardPos(suit, val) {
@@ -621,6 +658,9 @@
       stackType: 'stebbins',
       stebbinsStartSuit: 2,
       stebbinsStartValue: 0,
+      customStackCodes: [],
+      cameraStream: null,
+      cameraParsedCodes: [],
       session: null, sessionChannel: null, sessionPoll: null, performResult: null,
       voice: {
         rec: null,
@@ -665,6 +705,12 @@
       S.voice.listening = false;
       if (S.soloCountdownIntv) { clearInterval(S.soloCountdownIntv); S.soloCountdownIntv = null; }
       if (S.soloStartTimer) { clearTimeout(S.soloStartTimer); S.soloStartTimer = null; }
+    }
+    function stopCamera() {
+      if (S.cameraStream) {
+        S.cameraStream.getTracks().forEach((t) => t.stop());
+        S.cameraStream = null;
+      }
     }
     function clearSessionWatchers() {
       if (S.sessionChannel) { sb.removeChannel(S.sessionChannel); S.sessionChannel = null; }
@@ -720,6 +766,7 @@
     function go(view) {
       clearSessionWatchers();
       stopVoice();
+      stopCamera();
       S.view = view;
       render();
     }
@@ -753,14 +800,15 @@
         is_active: true,
         stack_type: 'stebbins',
         stebbins_start_suit: 2,
-        stebbins_start_value: 0
+        stebbins_start_value: 0,
+        custom_stack_json: null
       };
       const { error } = await sb.from('profiles').insert(payload);
       if (error) throw error;
     }
     async function loadProfile() {
       if (!S.user) return;
-      const { data, error } = await sb.from('profiles').select('email, public_code, is_active, stack_type, stebbins_start_suit, stebbins_start_value').eq('id', S.user.id).maybeSingle();
+      const { data, error } = await sb.from('profiles').select('email, public_code, is_active, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json').eq('id', S.user.id).maybeSingle();
       if (error) throw error;
       if (data) {
         S.email = data.email || S.user.email || '';
@@ -769,10 +817,11 @@
         S.stackType = STACK_TYPES.includes(data.stack_type) ? data.stack_type : 'stebbins';
         S.stebbinsStartSuit = Number.isInteger(data.stebbins_start_suit) ? data.stebbins_start_suit : 2;
         S.stebbinsStartValue = Number.isInteger(data.stebbins_start_value) ? data.stebbins_start_value : 0;
+        S.customStackCodes = Array.isArray(data.custom_stack_json) ? data.custom_stack_json : [];
       }
     }
     async function ensureBypassProfile() {
-      const existing = await sb.from('profiles').select('id, email, public_code, is_active, stack_type, stebbins_start_suit, stebbins_start_value').eq('id', S.user.id).maybeSingle();
+      const existing = await sb.from('profiles').select('id, email, public_code, is_active, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json').eq('id', S.user.id).maybeSingle();
       if (existing.error && existing.error.code !== 'PGRST116') throw existing.error;
       if (existing.data) {
         S.email = existing.data.email || S.user.email || 'guest@hideandseek.app';
@@ -781,6 +830,7 @@
         S.stackType = STACK_TYPES.includes(existing.data.stack_type) ? existing.data.stack_type : 'stebbins';
         S.stebbinsStartSuit = Number.isInteger(existing.data.stebbins_start_suit) ? existing.data.stebbins_start_suit : 2;
         S.stebbinsStartValue = Number.isInteger(existing.data.stebbins_start_value) ? existing.data.stebbins_start_value : 0;
+        S.customStackCodes = Array.isArray(existing.data.custom_stack_json) ? existing.data.custom_stack_json : [];
         return;
       }
       const code = (S.user.id || '').replace(/-/g, '').slice(0, 6).toUpperCase() || 'HIDE01';
@@ -792,7 +842,8 @@
         is_active: true,
         stack_type: 'stebbins',
         stebbins_start_suit: 2,
-        stebbins_start_value: 0
+        stebbins_start_value: 0,
+        custom_stack_json: null
       });
       if (ins.error) throw ins.error;
       S.email = email;
@@ -801,6 +852,7 @@
       S.stackType = 'stebbins';
       S.stebbinsStartSuit = 2;
       S.stebbinsStartValue = 0;
+      S.customStackCodes = [];
     }
     async function setProfileActive(nextActive) {
       const { error } = await sb.from('profiles').update({ is_active: nextActive }).eq('id', S.user.id);
@@ -811,7 +863,8 @@
       const payload = {
         stack_type: S.stackType,
         stebbins_start_suit: S.stebbinsStartSuit,
-        stebbins_start_value: S.stebbinsStartValue
+        stebbins_start_value: S.stebbinsStartValue,
+        custom_stack_json: (S.customStackCodes && S.customStackCodes.length) ? S.customStackCodes : null
       };
       const { error } = await sb.from('profiles').update(payload).eq('id', S.user.id);
       if (error) throw error;
@@ -1207,6 +1260,78 @@
     function viewSoloPerform() {
       return '<div class="solo-screen"><button id="solo-back" class="perform-exit">EXIT</button><div id="solo-main"><div class="perform-awaiting">SOLO READY</div></div><div id="solo-status" class="solo-hint"></div></div><div id="error-box" class="error"></div>';
     }
+    function viewCameraStack() {
+      return '' +
+        '<div class="logo">HIDE & SEEK</div>' +
+        '<div class="panel stack">' +
+        '<h2>Camera Stack Input</h2>' +
+        '<video id="cam-video" autoplay playsinline style="width:100%;border-radius:12px;background:#000;min-height:220px;"></video>' +
+        '<canvas id="cam-canvas" style="display:none;"></canvas>' +
+        '<div class="btn-row"><button id="cam-capture" class="btn-primary">Capture & Scan</button><button id="cam-back" class="btn-outline">Back</button></div>' +
+        '<textarea id="cam-ocr-text" style="width:100%;min-height:100px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:14px;padding:10px;" placeholder="OCR result..."></textarea>' +
+        '<button id="cam-use" class="btn-primary btn-full">Use As Custom Stack</button>' +
+        '<div class="tiny" id="cam-status">Aim at the spread so top-left indices are visible.</div>' +
+        '</div><div id="error-box" class="error"></div>';
+    }
+    async function bindCameraStack() {
+      const back = el('cam-back');
+      if (back) back.onclick = () => go('settings');
+      try {
+        S.cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        const vid = el('cam-video');
+        if (vid) vid.srcObject = S.cameraStream;
+      } catch (err) {
+        showError('Camera access failed. ' + (err.message || ''));
+      }
+      const capture = el('cam-capture');
+      if (capture) {
+        capture.onclick = async () => {
+          const vid = el('cam-video');
+          const cvs = el('cam-canvas');
+          const txt = el('cam-ocr-text');
+          const status = el('cam-status');
+          if (!vid || !cvs || !txt) return;
+          if (!window.Tesseract) {
+            showError('OCR engine unavailable.');
+            return;
+          }
+          setBtn(capture, true, 'Scanning...');
+          try {
+            const w = vid.videoWidth || 1280;
+            const h = vid.videoHeight || 720;
+            cvs.width = w;
+            cvs.height = h;
+            const ctx = cvs.getContext('2d');
+            ctx.drawImage(vid, 0, 0, w, h);
+            const result = await window.Tesseract.recognize(cvs, 'eng');
+            const ocr = (result && result.data && result.data.text) ? result.data.text : '';
+            txt.value = ocr;
+            const parsed = parseCardCodesFromText(ocr);
+            S.cameraParsedCodes = parsed;
+            if (status) status.textContent = 'Detected ' + parsed.length + ' card codes.';
+          } catch (err) {
+            showError('OCR scan failed.');
+          } finally {
+            setBtn(capture, false);
+          }
+        };
+      }
+      const useBtn = el('cam-use');
+      if (useBtn) {
+        useBtn.onclick = () => {
+          const raw = (el('cam-ocr-text').value || '').trim();
+          const parsed = parseCardCodesFromText(raw);
+          const unique = Array.from(new Set(parsed));
+          if (unique.length !== 52) {
+            showError('Need exactly 52 unique valid card codes to save custom stack.');
+            return;
+          }
+          S.customStackCodes = unique;
+          S.stackType = 'custom';
+          go('settings');
+        };
+      }
+    }
     function startSoloListening() {
       if (S.voice.listening) return;
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1351,10 +1476,12 @@
         ['eight_kings', 'Eight Kings'],
         ['mnemonica', 'Mnemonica'],
         ['aronson', 'Aronson'],
-        ['redford', 'Redford']
+        ['redford', 'Redford'],
+        ['custom', 'Custom']
       ].map((it) => '<option value="' + it[0] + '"' + (S.stackType === it[0] ? ' selected' : '') + '>' + it[1] + '</option>').join('');
       const stebbinsCardBlock = '<div class="delay-wrap"><div class="delay-row"><span>Stebbins Position 1 Card</span><strong>' + cardLabel(S.stebbinsStartSuit, S.stebbinsStartValue) + '</strong></div><div class="btn-row"><select id="settings-stebbins-value" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + VAL_SYMS.map((v, i) => '<option value="' + i + '"' + (S.stebbinsStartValue === i ? ' selected' : '') + '>' + v + '</option>').join('') + '</select><select id="settings-stebbins-suit" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + SUIT_NAMES.map((n, i) => '<option value="' + i + '"' + (S.stebbinsStartSuit === i ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></div></div>';
-      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.publicCode || 'N/A') + '</strong></p><div><label>Card Stack</label><select id="settings-stack-type" style="width:100%;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + stackOptions + '</select></div><div id="settings-stebbins-wrap"' + (S.stackType === 'stebbins' ? '' : ' style="display:none;"') + '>' + stebbinsCardBlock + '</div><div><label>Start Trigger</label><input id="settings-start-trigger" type="text" value="' + (S.voice.startTrigger || 'okay') + '"></div><div><label>End Trigger</label><input id="settings-end-trigger" type="text" value="' + (S.voice.endTrigger || 'amazing') + '"></div><div class="delay-wrap"><div class="delay-row"><span>Microphone Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div></div><button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
+      const customBlock = '<div class="delay-wrap"><div class="delay-row"><span>Custom Stack</span><strong id="settings-custom-count">' + String(S.customStackCodes.length) + '/52</strong></div><button id="settings-camera-scan" class="btn-outline btn-full">Camera Input</button><textarea id="settings-custom-stack" style="width:100%;min-height:90px;margin-top:10px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:14px;padding:10px;">' + (S.customStackCodes || []).join(' ') + '</textarea><div class="tiny">Paste or scan card codes in order (example: AC 4H 7S ...)</div></div>';
+      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.publicCode || 'N/A') + '</strong></p><div><label>Card Stack</label><select id="settings-stack-type" style="width:100%;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + stackOptions + '</select></div><div id="settings-stebbins-wrap"' + (S.stackType === 'stebbins' ? '' : ' style="display:none;"') + '>' + stebbinsCardBlock + '</div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div><div><label>Start Trigger</label><input id="settings-start-trigger" type="text" value="' + (S.voice.startTrigger || 'okay') + '"></div><div><label>End Trigger</label><input id="settings-end-trigger" type="text" value="' + (S.voice.endTrigger || 'amazing') + '"></div><div class="delay-wrap"><div class="delay-row"><span>Microphone Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div></div><button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
     }
     function bindSettings() {
       el('settings-back').onclick = () => {
@@ -1376,6 +1503,16 @@
         S.stackType = stackType;
         S.stebbinsStartSuit = Number.isInteger(stebbinsSuit) ? stebbinsSuit : 2;
         S.stebbinsStartValue = Number.isInteger(stebbinsValue) ? stebbinsValue : 0;
+        if (stackType === 'custom') {
+          const rawCodes = (el('settings-custom-stack') ? el('settings-custom-stack').value : '').trim();
+          const parsed = parseCardCodesFromText(rawCodes);
+          const unique = Array.from(new Set(parsed));
+          if (unique.length !== 52) {
+            showError('Custom stack needs exactly 52 valid unique cards.');
+            return;
+          }
+          S.customStackCodes = unique;
+        }
         saveProfileStackSettings().then(() => {
           go('home');
         }).catch((err) => showError(err.message || 'Could not save settings.'));
@@ -1384,10 +1521,14 @@
       if (stackSel) {
         stackSel.onchange = () => {
           const wrap = el('settings-stebbins-wrap');
+          const customWrap = el('settings-custom-wrap');
           if (!wrap) return;
           wrap.style.display = stackSel.value === 'stebbins' ? '' : 'none';
+          if (customWrap) customWrap.style.display = stackSel.value === 'custom' ? '' : 'none';
         };
       }
+      const camBtn = el('settings-camera-scan');
+      if (camBtn) camBtn.onclick = () => go('camera-stack');
       initDelayPicker();
       el('logout-btn').onclick = async () => {
         const ok = window.confirm('Log out now?');
@@ -1414,6 +1555,7 @@
       if (S.view === 'perform') { app.innerHTML = viewPerform(); bindPerform(); return; }
       if (S.view === 'solo-perform') { app.innerHTML = viewSoloPerform(); bindSoloPerform(); return; }
       if (S.view === 'voice') { app.innerHTML = viewVoice(); bindVoice(); return; }
+      if (S.view === 'camera-stack') { app.innerHTML = viewCameraStack(); await bindCameraStack(); return; }
       if (S.view === 'settings') { app.innerHTML = viewSettings(); bindSettings(); }
     }
     async function init() {

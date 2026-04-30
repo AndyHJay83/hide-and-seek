@@ -15,6 +15,7 @@ create table if not exists public.profiles (
   stack_type text not null default 'stebbins',
   stebbins_start_suit integer not null default 2,
   stebbins_start_value integer not null default 0,
+  custom_stack_json jsonb,
   created_at timestamptz not null default now()
 );
 
@@ -23,6 +24,7 @@ alter table public.profiles add column if not exists is_active boolean not null 
 alter table public.profiles add column if not exists stack_type text not null default 'stebbins';
 alter table public.profiles add column if not exists stebbins_start_suit integer not null default 2;
 alter table public.profiles add column if not exists stebbins_start_value integer not null default 0;
+alter table public.profiles add column if not exists custom_stack_json jsonb;
 create unique index if not exists profiles_public_code_key on public.profiles(public_code);
 alter table public.profiles drop constraint if exists profiles_public_code_format_chk;
 alter table public.profiles
@@ -31,7 +33,7 @@ alter table public.profiles
 alter table public.profiles drop constraint if exists profiles_stack_type_chk;
 alter table public.profiles
   add constraint profiles_stack_type_chk
-  check (stack_type in ('stebbins', 'ndo', 'eight_kings', 'mnemonica', 'aronson', 'redford'));
+  check (stack_type in ('stebbins', 'ndo', 'eight_kings', 'mnemonica', 'aronson', 'redford', 'custom'));
 alter table public.profiles drop constraint if exists profiles_stebbins_suit_chk;
 alter table public.profiles
   add constraint profiles_stebbins_suit_chk
