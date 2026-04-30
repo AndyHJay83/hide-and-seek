@@ -274,38 +274,63 @@
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      gap: 8px;
-      margin-top: 10px;
+      gap: 10px;
+      margin-top: 14px;
       color: var(--muted);
       font-size: 13px;
       letter-spacing: 0.06em;
     }
+    .active-label {
+      color: rgba(255,255,255,0.72);
+      letter-spacing: 0.12em;
+      font-size: 12px;
+      text-align: center;
+    }
     .switch {
       position: relative;
-      width: 56px;
-      height: 32px;
+      width: 72px;
+      height: 38px;
       border-radius: 999px;
       border: 1px solid var(--border-mid);
-      background: var(--surface-2);
+      background: rgba(255,255,255,0.07);
       cursor: pointer;
+      transition: all .2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto;
     }
     .switch::after {
       content: '';
       position: absolute;
-      top: 3px;
-      left: 3px;
-      width: 24px;
-      height: 24px;
+      top: 4px;
+      left: 4px;
+      width: 28px;
+      height: 28px;
       border-radius: 999px;
-      background: #fff;
-      transition: transform .2s ease;
+      background: #f7f7f7;
+      box-shadow: 0 0 12px rgba(255,255,255,0.28);
+      transition: transform .22s ease, background .22s ease;
     }
     .switch.on {
-      background: rgba(49,255,112,0.2);
-      border-color: rgba(49,255,112,0.7);
+      background: rgba(49,255,112,0.22);
+      border-color: rgba(49,255,112,0.85);
+      box-shadow: 0 0 18px rgba(49,255,112,0.3);
     }
     .switch.on::after {
-      transform: translateX(24px);
+      transform: translateX(34px);
+      background: #ffffff;
+    }
+    .toggle-state {
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      color: rgba(255,255,255,0.58);
+      text-align: center;
+      min-height: 14px;
+    }
+    .toggle-state.on {
+      color: rgba(49,255,112,0.9);
+      text-shadow: 0 0 12px rgba(49,255,112,0.45);
     }
     .home-shell {
       background: transparent;
@@ -403,6 +428,16 @@
     }
     .perform-awaiting { font-weight: 700; letter-spacing: 0.2em; color: rgba(255,255,255,0.75); animation: pulse 1.5s ease-in-out infinite; }
     .perform-num { font-size: clamp(120px, 32vw, 200px); line-height: 1; font-weight: 900; letter-spacing: 0.04em; text-shadow: var(--glow-lg); }
+    .perform-phrase {
+      font-size: clamp(26px, 7vw, 54px);
+      line-height: 1.12;
+      font-weight: 900;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      text-shadow: var(--glow-md);
+      max-width: 900px;
+      margin: 0 auto;
+    }
     .perform-sub { margin-top: 12px; color: var(--muted); font-size: 14px; }
     .perform-exit {
       position: fixed;
@@ -455,11 +490,55 @@
     const DEV_BYPASS_AUTH = true;
     const SUIT_NAMES = ['Spades', 'Hearts', 'Clubs', 'Diamonds'];
     const VAL_NAMES = ['Ace', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Jack', 'Queen', 'King'];
+    const PHRASES = {
+      1: 'MIRACLE HIT (DIRECTLY NEXT TO)',
+      2: 'SEE - START ON SEEKER',
+      3: 'FIND - START ON SEEKER',
+      4: 'FOUR',
+      5: 'FOUND',
+      6: 'SEE YOU',
+      7: 'I SEE YOU',
+      8: 'FOUND YOU',
+      9: 'I FOUND YOU',
+      10: 'HERE YOU ARE',
+      11: 'HIDE AND SEEK',
+      12: 'I WILL FIND YOU',
+      13: 'NOWHERE TO HIDE',
+      14: 'YOU WILL BE FOUND',
+      15: 'SLOWLY BUT SURELY',
+      16: "I'M RIGHT BEHIND YOU",
+      17: "I'M COMING TO FIND YOU",
+      18: 'I WILL ALWAYS FIND YOU',
+      19: 'YOU WILL BE HIDING HERE',
+      20: 'I FOUND YOUR HIDING SPOT',
+      21: 'I FOUND YOUR HIDING PLACE',
+      22: "LET'S FIND YOUR HIDING SPOT",
+      23: "YOU CAN RUN BUT YOU CAN'T HIDE",
+      24: 'YOU WILL BE HIDING RIGHT HERE',
+      25: 'I KNEW YOU WOULD BE HIDING HERE',
+      26: 'EACH STEP TAKES ME CLOSER TO YOU',
+      27: 'EACH STEP BRINGS ME CLOSER TO YOU',
+      28: 'THE SEARCH FOR YOUR CARD ENDS HERE',
+      29: 'YOUR CARD WILL BE HIDING RIGHT HERE',
+      30: 'THE CARD WILL BE HIDING EXACTLY HERE',
+      31: 'HOW ON EARTH DID YOU KNOW WHERE TO LOOK',
+      32: 'YOU WILL PROBABLY BE HIDING RIGHT HERE',
+      33: 'EVERY STEP I TAKE BRINGS ME CLOSER TO YOU',
+      34: 'EACH STEP I TAKE BRINGS ME DIRECTLY TO YOU',
+      35: 'EVERY STEP I TAKE BRINGS ME DIRECTLY TO YOU'
+    };
 
     function cardPos(suit, val) { return suit * 13 + val + 1; }
     function cardLabel(suit, val) { return VAL_NAMES[val] + ' of ' + SUIT_NAMES[suit]; }
     function calcDiff(ss, sv, hs, hv) { return cardPos(hs, hv) - cardPos(ss, sv); }
     function isValidPublicCode(v) { return /^[A-Z0-9]{6}$/.test(v); }
+    function phraseForDiff(diff) {
+      const abs = Math.abs(diff);
+      if (!PHRASES[abs]) {
+        return (diff > 0 ? '+' + diff : String(diff));
+      }
+      return abs + '. ' + PHRASES[abs];
+    }
 
     const S = {
       view: 'welcome', user: null, email: '',
@@ -822,7 +901,7 @@
     }
 
     function viewHome() {
-      return '<div class="home-header"><div class="logo" style="margin:12px 0 0;text-align:center;font-size:30px;">HIDE & SEEK</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button id="copy-public-link" class="code-chip">' + (S.publicCode || 'N/A') + '</button><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div><button id="go-solo" class="action-tile solo-btn">PERFORM SOLO<span class="solo-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a4 4 0 0 0 4-4V7a4 4 0 1 0-8 0v4.5a4 4 0 0 0 4 4Zm7-4a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 1 0-2 0 7 7 0 0 0 6 6.92V21H9a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2h-2v-2.58A7 7 0 0 0 19 11.5Z"/></svg></span></button><div class="delay-wrap"><div class="delay-row"><span>Solo Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div><div class="tiny center">0 seconds = manual lower-half double tap start/stop</div></div><button id="go-accomplice" class="action-tile">ACCOMPLICE</button><div class="active-toggle"><span>ACTIVE</span><button id="toggle-active" class="switch ' + (S.isActive ? 'on' : 'off') + '" aria-label="toggle active"></button></div></div><div id="error-box" class="error"></div>';
+      return '<div class="home-header"><div class="logo" style="margin:12px 0 0;text-align:center;font-size:30px;">HIDE & SEEK</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button id="copy-public-link" class="code-chip">' + (S.publicCode || 'N/A') + '</button><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div><button id="go-solo" class="action-tile solo-btn">PERFORM SOLO<span class="solo-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a4 4 0 0 0 4-4V7a4 4 0 1 0-8 0v4.5a4 4 0 0 0 4 4Zm7-4a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 1 0-2 0 7 7 0 0 0 6 6.92V21H9a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2h-2v-2.58A7 7 0 0 0 19 11.5Z"/></svg></span></button><div class="delay-wrap"><div class="delay-row"><span>Solo Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div><div class="tiny center">0 seconds = manual lower-half double tap start/stop</div></div><button id="go-accomplice" class="action-tile">ACCOMPLICE</button><div class="active-toggle"><span class="active-label">ACTIVE</span><button id="toggle-active" class="switch ' + (S.isActive ? 'on' : 'off') + '" aria-label="toggle active"></button><div class="toggle-state ' + (S.isActive ? 'on' : '') + '">' + (S.isActive ? 'LIVE' : 'OFF') + '</div></div></div><div id="error-box" class="error"></div>';
     }
     function bindHome() {
       el('open-settings').onclick = () => go('settings');
@@ -904,10 +983,10 @@
     }
     function showPerformResult(data) {
       const diff = calcDiff(data.seeker_suit, data.seeker_value, data.hider_suit, data.hider_value);
-      const signed = diff > 0 ? '+' + diff : String(diff);
+      const phrase = phraseForDiff(diff);
       const main = el('perform-main');
       if (!main) return;
-      main.innerHTML = '<div class="perform-num">' + signed + '</div><div class="perform-sub">' + cardLabel(data.seeker_suit, data.seeker_value) + '</div><div class="perform-sub">' + cardLabel(data.hider_suit, data.hider_value) + '</div>';
+      main.innerHTML = '<div class="perform-phrase">' + phrase + '</div><div class="perform-sub">' + cardLabel(data.seeker_suit, data.seeker_value) + '</div><div class="perform-sub">' + cardLabel(data.hider_suit, data.hider_value) + '</div>';
     }
     async function checkSessionForResult() {
       if (!S.session) return;
@@ -946,8 +1025,8 @@
 
     function voiceResultMarkup(result) {
       if (!result || !result.parsed) return '';
-      const diff = result.diff > 0 ? '+' + result.diff : String(result.diff);
-      return '<div style="margin-top:6px;"><div class="perform-num" style="font-size:clamp(84px,22vw,150px);text-align:center;">' + diff + '</div><div class="perform-sub" style="text-align:center;">' + cardLabel(result.parsed.seeker.suit, result.parsed.seeker.value) + '</div><div class="perform-sub" style="text-align:center;">' + cardLabel(result.parsed.hider.suit, result.parsed.hider.value) + '</div></div>';
+      const phrase = phraseForDiff(result.diff);
+      return '<div style="margin-top:6px;"><div class="perform-phrase" style="font-size:clamp(22px,6vw,44px);text-align:center;">' + phrase + '</div><div class="perform-sub" style="text-align:center;">' + cardLabel(result.parsed.seeker.suit, result.parsed.seeker.value) + '</div><div class="perform-sub" style="text-align:center;">' + cardLabel(result.parsed.hider.suit, result.parsed.hider.value) + '</div></div>';
     }
     function viewSoloPerform() {
       return '<div class="solo-screen"><button id="solo-back" class="perform-exit">EXIT</button><div id="solo-main"><div class="perform-awaiting">SOLO READY</div></div><div id="solo-status" class="solo-hint"></div></div><div id="error-box" class="error"></div>';
@@ -982,10 +1061,10 @@
           return;
         }
         const diff = calcDiff(parsed.seeker.suit, parsed.seeker.value, parsed.hider.suit, parsed.hider.value);
-        const signed = diff > 0 ? '+' + diff : String(diff);
+        const phrase = phraseForDiff(diff);
         const main = el('solo-main');
         if (main) {
-          main.innerHTML = '<div class="perform-num">' + signed + '</div><div class="perform-sub">' + cardLabel(parsed.seeker.suit, parsed.seeker.value) + '</div><div class="perform-sub">' + cardLabel(parsed.hider.suit, parsed.hider.value) + '</div>';
+          main.innerHTML = '<div class="perform-phrase">' + phrase + '</div><div class="perform-sub">' + cardLabel(parsed.seeker.suit, parsed.seeker.value) + '</div><div class="perform-sub">' + cardLabel(parsed.hider.suit, parsed.hider.value) + '</div>';
         }
         setText('solo-status', 'Captured.');
       };
