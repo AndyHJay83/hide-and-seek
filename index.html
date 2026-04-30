@@ -1259,10 +1259,20 @@
     }
 
     function viewSettings() {
-      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.publicCode || 'N/A') + '</strong></p><div class="delay-wrap"><div class="delay-row"><span>Microphone Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div></div><button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
+      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.publicCode || 'N/A') + '</strong></p><div><label>Start Trigger</label><input id="settings-start-trigger" type="text" value="' + (S.voice.startTrigger || 'okay') + '"></div><div><label>End Trigger</label><input id="settings-end-trigger" type="text" value="' + (S.voice.endTrigger || 'amazing') + '"></div><div class="delay-wrap"><div class="delay-row"><span>Microphone Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div></div><button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
     }
     function bindSettings() {
-      el('settings-back').onclick = () => go('home');
+      el('settings-back').onclick = () => {
+        const st = (el('settings-start-trigger').value || '').trim().toLowerCase();
+        const et = (el('settings-end-trigger').value || '').trim().toLowerCase();
+        if (!st || !et) {
+          showError('Start and end triggers are required.');
+          return;
+        }
+        S.voice.startTrigger = st;
+        S.voice.endTrigger = et;
+        go('home');
+      };
       initDelayPicker();
       el('logout-btn').onclick = async () => {
         const ok = window.confirm('Log out now?');
