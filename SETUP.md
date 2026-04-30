@@ -51,6 +51,20 @@ Place two PNG files at repo root:
 
 These are referenced by `manifest.json`.
 
+## 4.1) Camera AI Proxy (Vercel)
+
+The custom stack camera flow can call Claude Vision through a serverless proxy:
+
+- Endpoint path: `/api/claude-cards`
+- File in repo: `api/claude-cards.js`
+- Required env var in Vercel project settings:
+  - `ANTHROPIC_API_KEY` = your Anthropic API key
+
+Notes:
+- This keeps your API key off the client.
+- The app defaults to same-origin `/api/claude-cards` if `ANTHROPIC_PROXY_URL` is not set in `config.js`.
+- If hosting on GitHub Pages only (no serverless functions), this endpoint will not exist.
+
 ## 5) How the App Works
 
 ### Performer Flow (`index.html`)

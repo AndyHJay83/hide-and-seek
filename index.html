@@ -775,6 +775,211 @@
       }
       return out;
     }
+    function parseClaudeCardList(text) {
+      if (!text) return [];
+      const raw = String(text).replace(/[\n|]/g, ',');
+      const parts = raw.split(',');
+      const out = [];
+      for (let i = 0; i < parts.length; i++) {
+        const code = normalizeCardCode(parts[i]);
+        if (code) out.push(code);
+      }
+      return out;
+    }
+    function cardCodeToIdx(code) {
+      const n = normalizeCardCode(code);
+      if (!n) return null;
+      const suit = idxSuitFromLetter(n.slice(-1));
+      const val = VAL_SYMS.indexOf(n.slice(0, -1));
+      if (suit < 0 || val < 0) return null;
+      return { suit: suit, value: val };
+    }
+    function supportsVideoRecorder() {
+      return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+    }
+    function aggregateFrameReadings(frameReadings) {
+      const order = [];
+      const support = [];
+      for (let i = 0; i < 52; i++) {
+        const counts = {};
+        for (let f = 0; f < frameReadings.length; f++) {
+          const code = frameReadings[f][i];
+          if (!code) continue;
+          counts[code] = (counts[code] || 0) + 1;
+        }
+        let best = '';
+        let bestCount = 0;
+        const keys = Object.keys(counts);
+        for (let k = 0; k < keys.length; k++) {
+          const code = keys[k];
+          if (counts[code] > bestCount) {
+            bestCount = counts[code];
+            best = code;
+          }
+        }
+        order.push(best);
+        support.push(bestCount);
+      }
+      const dupFlags = new Array(52).fill(false);
+      const firstSeen = {};
+      for (let i = 0; i < order.length; i++) {
+        const c = order[i];
+        if (!c) continue;
+        if (firstSeen[c] == null) firstSeen[c] = i;
+        else {
+          dupFlags[firstSeen[c]] = true;
+          dupFlags[i] = true;
+        }
+      }
+      const uncertainFlags = order.map((code, i) => (!code || support[i] < 3));
+      return { order: order, support: support, duplicates: dupFlags, uncertain: uncertainFlags };
+    }
+    function recomputeCameraFlags() {
+      const order = S.cameraReview.order || [];
+      const support = S.cameraReview.support || [];
+      const dupFlags = new Array(52).fill(false);
+      const firstSeen = {};
+      for (let i = 0; i < 52; i++) {
+        const c = normalizeCardCode(order[i] || '');
+        order[i] = c || '';
+        if (!c) continue;
+        if (firstSeen[c] == null) firstSeen[c] = i;
+        else {
+          dupFlags[firstSeen[c]] = true;
+          dupFlags[i] = true;
+        }
+      }
+      S.cameraReview.duplicates = dupFlags;
+      S.cameraReview.uncertain = order.map((c, i) => (!c || (support[i] || 0) < 3));
+    }
+    function cameraReviewCsv(order) {
+      return (order || []).map((c) => normalizeCardCode(c || '') || '?').join(',');
+    }
+    function renderCameraReview() {
+      const wrap = el('cam-review');
+      if (!wrap) return;
+      const order = S.cameraReview.order || [];
+      const uncertain = S.cameraReview.uncertain || [];
+      const duplicates = S.cameraReview.duplicates || [];
+      const chips = [];
+      for (let i = 0; i < 52; i++) {
+        const code = order[i] || '--';
+        const classes = ['card-chip'];
+        if (isRedCode(code)) classes.push('red');
+        let style = '';
+        if (duplicates[i]) style = ' style="border-color:#ff5a5a;color:#ffb5b5;"';
+        else if (uncertain[i]) style = ' style="border-color:#ffb02e;color:#ffd494;"';
+        chips.push('<button class="' + classes.join(' ') + '" data-edit-idx="' + i + '"' + style + '>' + (i + 1) + '. ' + code + '</button>');
+      }
+      wrap.innerHTML = chips.join('');
+      const copyText = cameraReviewCsv(order);
+      const csvEl = el('cam-final-csv');
+      if (csvEl) csvEl.value = copyText;
+      const badCount = uncertain.filter(Boolean).length + duplicates.filter(Boolean).length;
+      const status = el('cam-status');
+      if (status) {
+        status.textContent = badCount ? ('Review needed: ' + badCount + ' highlighted positions.') : 'Review complete. Ready to use as custom stack.';
+      }
+    }
+    function openCameraEditPicker(idx, preserveSelection) {
+      S.cameraEditIndex = idx;
+      if (!preserveSelection) {
+        const current = cardCodeToIdx(S.cameraReview.order[idx]);
+        S.cameraEditValue = current ? current.value : 0;
+        S.cameraEditSuit = current ? current.suit : 0;
+      }
+      const picker = el('cam-edit-picker');
+      if (!picker) return;
+      picker.style.display = '';
+      const valueWrap = el('cam-edit-values');
+      const suitWrap = el('cam-edit-suits');
+      if (valueWrap) {
+        valueWrap.innerHTML = VAL_SYMS.map((v, i) => '<button class="card-btn' + (S.cameraEditValue === i ? ' sel' : '') + '" data-edit-v="' + i + '">' + v + '</button>').join('');
+      }
+      if (suitWrap) {
+        suitWrap.innerHTML = SUIT_NAMES.map((n, i) => '<button class="suit-btn' + (S.cameraEditSuit === i ? ' sel' : '') + '" data-edit-s="' + i + '"><span>' + SUIT_SYMS[i] + '</span><span>' + n + '</span></button>').join('');
+      }
+      const label = el('cam-edit-label');
+      if (label) label.textContent = 'Edit Position ' + (idx + 1);
+    }
+    function closeCameraEditPicker() {
+      const picker = el('cam-edit-picker');
+      if (picker) picker.style.display = 'none';
+      S.cameraEditIndex = -1;
+    }
+    async function callClaudeFrameReader(dataUrl) {
+      const proxyUrl = (window.ANTHROPIC_PROXY_URL || '/api/claude-cards').trim();
+      const apiKey = (window.ANTHROPIC_API_KEY || '').trim();
+      const body = {
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 280,
+        system: 'You are reading playing card indices from a photo. List every card you can clearly read from left to right, using short notation: AS, KH, 10C, 2D etc. Black suits are spades and clubs, red suits are hearts and diamonds. Use colour to confirm the suit. Only return the card list, nothing else, comma separated.',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Read card indices left-to-right and return a comma-separated card list only.' },
+            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: dataUrl.split(',')[1] || '' } }
+          ]
+        }]
+      };
+      if (proxyUrl) {
+        const res = await fetch(proxyUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error('Proxy request failed (' + res.status + ').');
+        const data = await res.json();
+        const text = data && data.text ? data.text : (((data || {}).content || [])[0] || {}).text || '';
+        return parseClaudeCardList(text);
+      }
+      if (!apiKey) throw new Error('Missing ANTHROPIC proxy/url config.');
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) throw new Error('Claude request failed (' + res.status + ').');
+      const data = await res.json();
+      const text = (((data || {}).content || [])[0] || {}).text || '';
+      return parseClaudeCardList(text);
+    }
+    async function extractFramesFromVideoBlob(blob, frameCount) {
+      const url = URL.createObjectURL(blob);
+      const video = document.createElement('video');
+      video.src = url;
+      video.muted = true;
+      video.playsInline = true;
+      await new Promise((resolve, reject) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = () => reject(new Error('Unable to load recording.'));
+      });
+      const dur = Math.max(1, video.duration || 10);
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 1280;
+      canvas.height = video.videoHeight || 720;
+      const ctx = canvas.getContext('2d');
+      const frames = [];
+      for (let i = 0; i < frameCount; i++) {
+        const t = Math.min(dur - 0.05, (dur * (i + 1)) / (frameCount + 1));
+        await new Promise((resolve) => {
+          const handler = () => {
+            video.removeEventListener('seeked', handler);
+            resolve();
+          };
+          video.addEventListener('seeked', handler);
+          video.currentTime = t;
+        });
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        frames.push(canvas.toDataURL('image/jpeg', 0.8));
+      }
+      URL.revokeObjectURL(url);
+      return frames;
+    }
     function buildStebbinsMap(startSuitIdx, startValIdx) {
       const startSuitLetter = SUIT_LETTERS[startSuitIdx];
       const cycleStart = STEBBINS_SUIT_CYCLE.indexOf(startSuitLetter);
@@ -824,10 +1029,73 @@
       return abs + '. ' + PHRASES[abs];
     }
 
+    const OTP_RESEND_COOLDOWN_MS = 60000;
+    const OTP_RATE_LIMIT_COOLDOWN_MS = 120000;
+
+    function friendlyAuthError(err) {
+      const msg = err && err.message != null ? String(err.message) : '';
+      const status = err && err.status;
+      if (status === 429 || /rate limit|429|too many requests|email rate limit exceeded/i.test(msg)) {
+        return 'Too many sign-in emails were sent. Please wait a couple of minutes and try again. For launches with heavy traffic, enable custom SMTP and raise Auth rate limits in the Supabase dashboard.';
+      }
+      return msg || 'Something went wrong.';
+    }
+
+    function otpCooldownRemainingSec(key) {
+      const until = S.otpCooldownUntil[key] || 0;
+      return Math.max(0, Math.ceil((until - Date.now()) / 1000));
+    }
+
+    function clearOtpSendCooldownTimer() {
+      if (S.otpCooldownTimerId) {
+        clearInterval(S.otpCooldownTimerId);
+        S.otpCooldownTimerId = null;
+      }
+      S.otpCooldownBtnId = null;
+    }
+
+    /** Disables button and shows countdown; re-enables when finished. */
+    function startOtpSendCooldown(btn, sec) {
+      clearOtpSendCooldownTimer();
+      if (!btn || sec <= 0) return;
+      const id = btn.id;
+      if (!id) return;
+      if (!btn.dataset.label) btn.dataset.label = btn.textContent || 'Send Code';
+      let left = sec;
+      btn.disabled = true;
+      btn.textContent = 'Wait ' + left + 's';
+      S.otpCooldownBtnId = id;
+      S.otpCooldownTimerId = setInterval(() => {
+        left -= 1;
+        const b = el(id);
+        if (!b) {
+          clearOtpSendCooldownTimer();
+          return;
+        }
+        if (left <= 0) {
+          clearOtpSendCooldownTimer();
+          b.disabled = false;
+          b.textContent = b.dataset.label || 'Send Code';
+          return;
+        }
+        b.textContent = 'Wait ' + left + 's';
+      }, 1000);
+    }
+
+    function resumeOtpCooldownIfNeeded(btnId, key) {
+      const left = otpCooldownRemainingSec(key);
+      if (left <= 0) return;
+      const btn = el(btnId);
+      if (btn) startOtpSendCooldown(btn, left);
+    }
+
     const S = {
       view: 'welcome', user: null, email: '',
       regCode: '', regEmail: '', regPublicCode: '',
       loginEmail: '', publicCode: '', isActive: true,
+      otpCooldownUntil: { login: 0, reg: 0 },
+      otpCooldownTimerId: null,
+      otpCooldownBtnId: null,
       performInputMethod: 'voice',
       shortDeal: false,
       staticStack: false,
@@ -843,6 +1111,14 @@
       customStackCodes: [],
       cameraStream: null,
       cameraParsedCodes: [],
+      cameraRecorder: null,
+      cameraChunks: [],
+      cameraRecordIntv: null,
+      cameraRecording: false,
+      cameraReview: { order: new Array(52).fill(''), support: new Array(52).fill(0), uncertain: new Array(52).fill(true), duplicates: new Array(52).fill(false) },
+      cameraEditIndex: -1,
+      cameraEditValue: 0,
+      cameraEditSuit: 0,
       session: null, sessionChannel: null, sessionPoll: null, performResult: null,
       voice: {
         rec: null,
@@ -889,6 +1165,16 @@
       if (S.soloStartTimer) { clearTimeout(S.soloStartTimer); S.soloStartTimer = null; }
     }
     function stopCamera() {
+      if (S.cameraRecordIntv) {
+        clearInterval(S.cameraRecordIntv);
+        S.cameraRecordIntv = null;
+      }
+      if (S.cameraRecorder && S.cameraRecorder.state !== 'inactive') {
+        try { S.cameraRecorder.stop(); } catch (_) {}
+      }
+      S.cameraRecorder = null;
+      S.cameraChunks = [];
+      S.cameraRecording = false;
       if (S.cameraStream) {
         S.cameraStream.getTracks().forEach((t) => t.stop());
         S.cameraStream = null;
@@ -949,6 +1235,7 @@
       clearSessionWatchers();
       stopVoice();
       stopCamera();
+      clearOtpSendCooldownTimer();
       S.view = view;
       render();
     }
@@ -1161,27 +1448,59 @@
     }
     function bindLoginEmail() {
       el('back-welcome').onclick = () => go('welcome');
+      resumeOtpCooldownIfNeeded('send-login-otp', 'login');
       el('send-login-otp').onclick = async () => {
         clearError();
         const btn = el('send-login-otp');
+        if (!btn || btn.disabled) return;
         const email = (el('login-email-input').value || '').trim().toLowerCase();
         if (!email) return showError('Enter your email.');
         try {
           setBtn(btn, true, 'Sending...');
-          if (!(await hasProfile(email))) throw new Error('No profile found for this email.');
+          if (!(await hasProfile(email))) {
+            showError('No profile found for this email.');
+            setBtn(btn, false);
+            return;
+          }
           const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
           if (error) throw error;
+          S.otpCooldownUntil.login = Date.now() + OTP_RESEND_COOLDOWN_MS;
           S.loginEmail = email;
           go('login-otp');
-        } catch (err) { showError(err.message || 'Unable to send OTP.'); }
-        finally { setBtn(btn, false); }
+        } catch (err) {
+          showError(friendlyAuthError(err));
+          const is429 = err && (err.status === 429 || /429|rate limit|email rate limit/i.test(String(err.message || '')));
+          const ms = is429 ? OTP_RATE_LIMIT_COOLDOWN_MS : OTP_RESEND_COOLDOWN_MS;
+          S.otpCooldownUntil.login = Date.now() + ms;
+          startOtpSendCooldown(btn, Math.ceil(ms / 1000));
+        }
       };
     }
     function viewLoginOtp() {
-      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Enter Code</h2><p class="muted">Code sent to ' + S.loginEmail + '</p><div class="otp-wrap">' + [0,1,2,3,4,5].map((i) => '<input class="otp-cell" id="otp-' + i + '" inputmode="numeric" autocomplete="one-time-code" maxlength="1">').join('') + '</div><button id="back-login-email" class="btn-outline btn-full">Back</button></div><div id="error-box" class="error"></div>';
+      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Enter Code</h2><p class="muted">Code sent to ' + S.loginEmail + '</p><div class="otp-wrap">' + [0,1,2,3,4,5].map((i) => '<input class="otp-cell" id="otp-' + i + '" inputmode="numeric" autocomplete="one-time-code" maxlength="1">').join('') + '</div><button id="resend-login-otp" class="btn-outline btn-full">Resend code</button><button id="back-login-email" class="btn-outline btn-full">Back</button></div><div id="error-box" class="error"></div>';
     }
     function bindLoginOtp() {
       el('back-login-email').onclick = () => go('login-email');
+      resumeOtpCooldownIfNeeded('resend-login-otp', 'login');
+      el('resend-login-otp').onclick = async () => {
+        clearError();
+        const btn = el('resend-login-otp');
+        if (!btn || btn.disabled || !S.loginEmail) return;
+        try {
+          setBtn(btn, true, 'Sending...');
+          const { error } = await sb.auth.signInWithOtp({ email: S.loginEmail, options: { shouldCreateUser: false } });
+          if (error) throw error;
+          S.otpCooldownUntil.login = Date.now() + OTP_RESEND_COOLDOWN_MS;
+          showToast('New code sent');
+          startOtpSendCooldown(btn, Math.ceil(OTP_RESEND_COOLDOWN_MS / 1000));
+        } catch (err) {
+          showError(friendlyAuthError(err));
+          const is429 = err && (err.status === 429 || /429|rate limit|email rate limit/i.test(String(err.message || '')));
+          const ms = is429 ? OTP_RATE_LIMIT_COOLDOWN_MS : OTP_RESEND_COOLDOWN_MS;
+          S.otpCooldownUntil.login = Date.now() + ms;
+          startOtpSendCooldown(btn, Math.ceil(ms / 1000));
+        }
+      };
       initOtpInputs(async (token) => {
         clearError();
         try {
@@ -1219,31 +1538,67 @@
     }
     function bindRegEmail() {
       el('back-reg-code').onclick = () => go('reg-code');
+      resumeOtpCooldownIfNeeded('send-reg-otp', 'reg');
       el('send-reg-otp').onclick = async () => {
         clearError();
         const btn = el('send-reg-otp');
+        if (!btn || btn.disabled) return;
         const email = (el('reg-email-input').value || '').trim().toLowerCase();
         const publicCode = (el('reg-public-code-input').value || '').trim();
         if (!email) return showError('Enter an email.');
         if (!isValidPublicCode(publicCode)) return showError('Public code must be exactly 1 digit (0-9).');
         try {
           setBtn(btn, true, 'Sending...');
-          if (await hasProfile(email)) throw new Error('This email already has an account. Use login.');
-          if (await hasPublicCode(publicCode)) throw new Error('That public code is already taken.');
+          if (await hasProfile(email)) {
+            showError('This email already has an account. Use login.');
+            setBtn(btn, false);
+            return;
+          }
+          if (await hasPublicCode(publicCode)) {
+            showError('That public code is already taken.');
+            setBtn(btn, false);
+            return;
+          }
           const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
           if (error) throw error;
+          S.otpCooldownUntil.reg = Date.now() + OTP_RESEND_COOLDOWN_MS;
           S.regEmail = email;
           S.regPublicCode = publicCode;
           go('reg-otp');
-        } catch (err) { showError(err.message || 'Could not send OTP.'); }
-        finally { setBtn(btn, false); }
+        } catch (err) {
+          showError(friendlyAuthError(err));
+          const is429 = err && (err.status === 429 || /429|rate limit|email rate limit/i.test(String(err.message || '')));
+          const ms = is429 ? OTP_RATE_LIMIT_COOLDOWN_MS : OTP_RESEND_COOLDOWN_MS;
+          S.otpCooldownUntil.reg = Date.now() + ms;
+          startOtpSendCooldown(btn, Math.ceil(ms / 1000));
+        }
       };
     }
     function viewRegOtp() {
-      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Enter Code</h2><p class="muted">Code sent to ' + S.regEmail + '</p><div class="otp-wrap">' + [0,1,2,3,4,5].map((i) => '<input class="otp-cell" id="otp-' + i + '" inputmode="numeric" autocomplete="one-time-code" maxlength="1">').join('') + '</div><button id="back-reg-email" class="btn-outline btn-full">Back</button></div><div id="error-box" class="error"></div>';
+      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Enter Code</h2><p class="muted">Code sent to ' + S.regEmail + '</p><div class="otp-wrap">' + [0,1,2,3,4,5].map((i) => '<input class="otp-cell" id="otp-' + i + '" inputmode="numeric" autocomplete="one-time-code" maxlength="1">').join('') + '</div><button id="resend-reg-otp" class="btn-outline btn-full">Resend code</button><button id="back-reg-email" class="btn-outline btn-full">Back</button></div><div id="error-box" class="error"></div>';
     }
     function bindRegOtp() {
       el('back-reg-email').onclick = () => go('reg-email');
+      resumeOtpCooldownIfNeeded('resend-reg-otp', 'reg');
+      el('resend-reg-otp').onclick = async () => {
+        clearError();
+        const btn = el('resend-reg-otp');
+        if (!btn || btn.disabled || !S.regEmail) return;
+        try {
+          setBtn(btn, true, 'Sending...');
+          const { error } = await sb.auth.signInWithOtp({ email: S.regEmail, options: { shouldCreateUser: true } });
+          if (error) throw error;
+          S.otpCooldownUntil.reg = Date.now() + OTP_RESEND_COOLDOWN_MS;
+          showToast('New code sent');
+          startOtpSendCooldown(btn, Math.ceil(OTP_RESEND_COOLDOWN_MS / 1000));
+        } catch (err) {
+          showError(friendlyAuthError(err));
+          const is429 = err && (err.status === 429 || /429|rate limit|email rate limit/i.test(String(err.message || '')));
+          const ms = is429 ? OTP_RATE_LIMIT_COOLDOWN_MS : OTP_RESEND_COOLDOWN_MS;
+          S.otpCooldownUntil.reg = Date.now() + ms;
+          startOtpSendCooldown(btn, Math.ceil(ms / 1000));
+        }
+      };
       initOtpInputs(async (token) => {
         clearError();
         try {
@@ -1596,20 +1951,37 @@
       return '' +
         '<div class="logo">HIDE & SEEK</div>' +
         '<div class="panel stack">' +
-        '<h2>Camera Stack Input</h2>' +
+        '<h2>Custom Stack Capture</h2>' +
+        '<div style="position:relative;">' +
         '<video id="cam-video" autoplay playsinline style="width:100%;border-radius:12px;background:#000;min-height:220px;"></video>' +
+        '<div style="position:absolute;left:8%;right:8%;top:42%;height:16%;border:2px solid rgba(255,255,255,0.6);border-radius:10px;box-shadow:0 0 0 9999px rgba(0,0,0,0.2) inset;pointer-events:none;"></div>' +
+        '</div>' +
         '<canvas id="cam-canvas" style="display:none;"></canvas>' +
-        '<div class="btn-row"><button id="cam-capture" class="btn-primary">Capture & Scan</button><button id="cam-back" class="btn-outline">Back</button></div>' +
-        '<div class="delay-row"><span>Detected Cards</span><strong id="cam-count">0</strong></div>' +
+        '<div class="delay-wrap"><div class="delay-row"><span>Recording</span><strong id="cam-record-left">10s</strong></div><div style="height:8px;background:#0a0a0a;border:1px solid var(--border);border-radius:999px;overflow:hidden;"><div id="cam-record-fill" style="width:0%;height:100%;background:#fff;"></div></div></div>' +
+        '<div class="btn-row"><button id="cam-record" class="btn-primary">Record 10s Pan</button><button id="cam-process" class="btn-outline">Process Frames</button></div>' +
+        '<div class="btn-row"><button id="cam-back" class="btn-outline">Back</button></div>' +
+        '<div class="delay-row"><span>Detected Cards</span><strong id="cam-count">0/52</strong></div>' +
         '<div id="cam-detected-cards" class="card-chip-wrap"><span class="tiny">No valid cards detected yet.</span></div>' +
-        '<textarea id="cam-ocr-text" style="width:100%;min-height:72px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:12px;padding:10px;" placeholder="Raw OCR text (editable fallback)..."></textarea>' +
-        '<button id="cam-use" class="btn-primary btn-full">Use As Custom Stack</button>' +
-        '<div class="tiny" id="cam-status">Aim at the spread so top-left indices are visible. Scan, then verify detected cards.</div>' +
+        '<textarea id="cam-ocr-text" style="width:100%;min-height:72px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:12px;padding:10px;" placeholder="Combined AI output (editable fallback)..."></textarea>' +
+        '<div id="cam-review" class="card-chip-wrap"></div>' +
+        '<div id="cam-edit-picker" style="display:none;margin-top:10px;border:1px solid var(--border-mid);border-radius:12px;padding:10px;background:#0a0a0a;">' +
+          '<div id="cam-edit-label" class="tiny" style="margin-bottom:8px;">Edit Position</div>' +
+          '<div id="cam-edit-values" class="val-grid"></div>' +
+          '<div id="cam-edit-suits" class="suit-row"></div>' +
+          '<div class="btn-row"><button id="cam-edit-save" class="btn-primary">Save Card</button><button id="cam-edit-cancel" class="btn-outline">Cancel</button></div>' +
+        '</div>' +
+        '<textarea id="cam-final-csv" style="width:100%;min-height:66px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:12px;padding:10px;" placeholder="Final 52-card CSV..."></textarea>' +
+        '<div class="btn-row"><button id="cam-copy-csv" class="btn-outline">Copy CSV</button><button id="cam-use" class="btn-primary">Use As Custom Stack</button></div>' +
+        '<div class="tiny" id="cam-status">Record a slow 10-second pan with card indices centered in the guide strip.</div>' +
         '</div><div id="error-box" class="error"></div>';
     }
     async function bindCameraStack() {
       const back = el('cam-back');
       if (back) back.onclick = () => go('settings');
+      const recordBtn = el('cam-record');
+      const processBtn = el('cam-process');
+      const recordLeft = el('cam-record-left');
+      const recordFill = el('cam-record-fill');
       try {
         S.cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
         const vid = el('cam-video');
@@ -1617,51 +1989,144 @@
       } catch (err) {
         showError('Camera access failed. ' + (err.message || ''));
       }
-      const capture = el('cam-capture');
-      if (capture) {
-        capture.onclick = async () => {
-          const vid = el('cam-video');
-          const cvs = el('cam-canvas');
-          const txt = el('cam-ocr-text');
+      if (!supportsVideoRecorder()) {
+        if (recordBtn) recordBtn.disabled = true;
+        if (processBtn) processBtn.disabled = true;
+        const status = el('cam-status');
+        if (status) status.textContent = 'MediaRecorder unsupported in this browser. Use Chrome on Android.';
+      }
+      if (recordBtn) {
+        recordBtn.onclick = () => {
+          clearError();
           const status = el('cam-status');
-          if (!vid || !cvs || !txt) return;
-          if (!window.Tesseract) {
-            showError('OCR engine unavailable.');
-            return;
-          }
-          setBtn(capture, true, 'Scanning...');
+          if (!S.cameraStream) return showError('Camera is not ready.');
+          if (!supportsVideoRecorder()) return showError('MediaRecorder is not supported.');
+          if (S.cameraRecording) return;
+          S.cameraChunks = [];
+          S.cameraRecording = true;
+          const type = MediaRecorder.isTypeSupported('video/webm;codecs=vp8') ? 'video/webm;codecs=vp8' :
+            (MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : '');
+          S.cameraRecorder = new MediaRecorder(S.cameraStream, type ? { mimeType: type } : undefined);
+          S.cameraRecorder.ondataavailable = (e) => { if (e.data && e.data.size) S.cameraChunks.push(e.data); };
+          S.cameraRecorder.onstop = () => {
+            S.cameraRecording = false;
+            if (status) status.textContent = 'Recording complete. Process frames.';
+            setBtn(recordBtn, false);
+            if (recordLeft) recordLeft.textContent = '0s';
+            if (recordFill) recordFill.style.width = '100%';
+          };
+          S.cameraRecorder.start();
+          if (status) status.textContent = 'Recording slow pan...';
+          setBtn(recordBtn, true, 'Recording...');
+          let left = 10;
+          if (recordLeft) recordLeft.textContent = left + 's';
+          if (recordFill) recordFill.style.width = '0%';
+          if (S.cameraRecordIntv) clearInterval(S.cameraRecordIntv);
+          S.cameraRecordIntv = setInterval(() => {
+            left -= 1;
+            if (recordLeft) recordLeft.textContent = Math.max(0, left) + 's';
+            if (recordFill) recordFill.style.width = (100 - (Math.max(0, left) / 10) * 100) + '%';
+            if (left <= 0) {
+              clearInterval(S.cameraRecordIntv);
+              S.cameraRecordIntv = null;
+              try { S.cameraRecorder.stop(); } catch (_) {}
+            }
+          }, 1000);
+        };
+      }
+      if (processBtn) {
+        processBtn.onclick = async () => {
+          clearError();
+          if (!S.cameraChunks.length) return showError('Record a 10-second pan first.');
+          const status = el('cam-status');
+          const txt = el('cam-ocr-text');
+          setBtn(processBtn, true, 'Processing...');
           try {
-            const w = vid.videoWidth || 1280;
-            const h = vid.videoHeight || 720;
-            cvs.width = w;
-            cvs.height = h;
-            const ctx = cvs.getContext('2d');
-            ctx.drawImage(vid, 0, 0, w, h);
-            const result = await window.Tesseract.recognize(cvs, 'eng');
-            const ocr = (result && result.data && result.data.text) ? result.data.text : '';
-            txt.value = ocr;
-            const parsed = parseCardCodesFromText(ocr);
-            S.cameraParsedCodes = parsed;
-            renderDetectedCardChips(parsed);
-            setText('cam-count', String(Array.from(new Set(parsed)).length));
-            if (status) status.textContent = 'Detected ' + parsed.length + ' card tokens. Confirm before saving.';
+            if (status) status.textContent = 'Extracting frames...';
+            const blob = new Blob(S.cameraChunks, { type: (S.cameraRecorder && S.cameraRecorder.mimeType) || 'video/webm' });
+            const frames = await extractFramesFromVideoBlob(blob, 10);
+            const frameReadings = [];
+            for (let i = 0; i < frames.length; i++) {
+              if (status) status.textContent = 'Reading frame ' + (i + 1) + '/10...';
+              const cards = await callClaudeFrameReader(frames[i]);
+              frameReadings.push(cards);
+            }
+            const agg = aggregateFrameReadings(frameReadings);
+            S.cameraReview = agg;
+            S.cameraParsedCodes = agg.order.filter(Boolean);
+            recomputeCameraFlags();
+            renderDetectedCardChips(S.cameraReview.order.filter(Boolean));
+            renderCameraReview();
+            setText('cam-count', String(S.cameraReview.order.filter(Boolean).length) + '/52');
+            if (txt) txt.value = cameraReviewCsv(S.cameraReview.order);
           } catch (err) {
-            showError('OCR scan failed.');
+            showError(err.message || 'Processing failed.');
           } finally {
-            setBtn(capture, false);
+            setBtn(processBtn, false);
           }
         };
       }
+      const review = el('cam-review');
+      if (review) {
+        review.onclick = (e) => {
+          const b = e.target.closest('button[data-edit-idx]');
+          if (!b) return;
+          openCameraEditPicker(Number(b.dataset.editIdx));
+        };
+      }
+      const editValues = el('cam-edit-values');
+      if (editValues) {
+        editValues.onclick = (e) => {
+          const b = e.target.closest('button[data-edit-v]');
+          if (!b) return;
+          S.cameraEditValue = Number(b.dataset.editV);
+          openCameraEditPicker(S.cameraEditIndex, true);
+        };
+      }
+      const editSuits = el('cam-edit-suits');
+      if (editSuits) {
+        editSuits.onclick = (e) => {
+          const b = e.target.closest('button[data-edit-s]');
+          if (!b) return;
+          S.cameraEditSuit = Number(b.dataset.editS);
+          openCameraEditPicker(S.cameraEditIndex, true);
+        };
+      }
+      const editCancel = el('cam-edit-cancel');
+      if (editCancel) editCancel.onclick = () => closeCameraEditPicker();
+      const editSave = el('cam-edit-save');
+      if (editSave) editSave.onclick = () => {
+        if (S.cameraEditIndex < 0) return;
+        S.cameraReview.order[S.cameraEditIndex] = cardCodeFromIdx(S.cameraEditSuit, S.cameraEditValue);
+        S.cameraReview.support[S.cameraEditIndex] = Math.max(3, S.cameraReview.support[S.cameraEditIndex] || 0);
+        recomputeCameraFlags();
+        renderCameraReview();
+        renderDetectedCardChips(S.cameraReview.order.filter(Boolean));
+        setText('cam-count', String(S.cameraReview.order.filter(Boolean).length) + '/52');
+        closeCameraEditPicker();
+      };
+      const copyCsv = el('cam-copy-csv');
+      if (copyCsv) copyCsv.onclick = async () => {
+        const csv = cameraReviewCsv(S.cameraReview.order);
+        try {
+          await navigator.clipboard.writeText(csv);
+          showToast('Copied');
+        } catch (_) {
+          window.prompt('Copy stack CSV:', csv);
+        }
+      };
       const useBtn = el('cam-use');
       if (useBtn) {
         useBtn.onclick = () => {
-          const raw = (el('cam-ocr-text').value || '').trim();
+          const raw = (el('cam-final-csv').value || '').trim();
           const parsed = parseCardCodesFromText(raw);
+          if (parsed.length !== 52) {
+            showError('Need exactly 52 valid cards before saving.');
+            return;
+          }
           const unique = Array.from(new Set(parsed));
-          renderDetectedCardChips(unique);
-          setText('cam-count', String(unique.length));
           if (unique.length !== 52) {
-            showError('Need exactly 52 unique valid card codes to save custom stack.');
+            showError('Duplicates detected. Fix highlighted positions first.');
             return;
           }
           S.customStackCodes = unique;
@@ -1669,6 +2134,7 @@
           go('settings');
         };
       }
+      renderCameraReview();
     }
     function startSoloListening() {
       if (S.voice.listening) return;
@@ -1906,6 +2372,7 @@
         stopVoice();
         S.user = null; S.email = ''; S.publicCode = ''; S.isActive = true; S.shortDeal = false; S.staticStack = false;
         S.session = null; S.performResult = null; S.regCode = ''; S.regEmail = ''; S.regPublicCode = ''; S.loginEmail = '';
+        S.otpCooldownUntil = { login: 0, reg: 0 };
         go('welcome');
       };
     }
