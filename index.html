@@ -804,7 +804,13 @@
       const seekerPos = stackCardPos(ss, sv);
       const hiderPos = stackCardPos(hs, hv);
       if (seekerPos == null || hiderPos == null) return 0;
-      return hiderPos - seekerPos;
+      const raw = hiderPos - seekerPos;
+      if (!S.shortDeal) return raw;
+      // Circular shortest path on a 52-card stack.
+      let shortest = raw;
+      if (shortest > 26) shortest -= 52;
+      if (shortest < -26) shortest += 52;
+      return shortest;
     }
     function isValidPublicCode(v) { return /^[A-Z0-9]{6}$/.test(v); }
     function phraseForDiff(diff) {
@@ -820,6 +826,7 @@
       regCode: '', regEmail: '', regPublicCode: '',
       loginEmail: '', publicCode: '', isActive: true,
       performInputMethod: 'voice',
+      shortDeal: false,
       stackType: 'stebbins',
       stebbinsStartSuit: 2,
       stebbinsStartValue: 0,
@@ -969,6 +976,7 @@
         email: S.user.email.toLowerCase(),
         public_code: S.regPublicCode,
         is_active: true,
+        short_deal: false,
         stack_type: 'stebbins',
         stebbins_start_suit: 2,
         stebbins_start_value: 0,
@@ -979,12 +987,13 @@
     }
     async function loadProfile() {
       if (!S.user) return;
-      const { data, error } = await sb.from('profiles').select('email, public_code, is_active, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json').eq('id', S.user.id).maybeSingle();
+      const { data, error } = await sb.from('profiles').select('email, public_code, is_active, short_deal, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json').eq('id', S.user.id).maybeSingle();
       if (error) throw error;
       if (data) {
         S.email = data.email || S.user.email || '';
         S.publicCode = data.public_code || '';
         S.isActive = data.is_active !== false;
+        S.shortDeal = data.short_deal === true;
         S.stackType = STACK_TYPES.includes(data.stack_type) ? data.stack_type : 'stebbins';
         S.stebbinsStartSuit = Number.isInteger(data.stebbins_start_suit) ? data.stebbins_start_suit : 2;
         S.stebbinsStartValue = Number.isInteger(data.stebbins_start_value) ? data.stebbins_start_value : 0;
@@ -992,12 +1001,13 @@
       }
     }
     async function ensureBypassProfile() {
-      const existing = await sb.from('profiles').select('id, email, public_code, is_active, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json').eq('id', S.user.id).maybeSingle();
+      const existing = await sb.from('profiles').select('id, email, public_code, is_active, short_deal, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json').eq('id', S.user.id).maybeSingle();
       if (existing.error && existing.error.code !== 'PGRST116') throw existing.error;
       if (existing.data) {
         S.email = existing.data.email || S.user.email || 'guest@hideandseek.app';
         S.publicCode = existing.data.public_code || '';
         S.isActive = existing.data.is_active !== false;
+        S.shortDeal = existing.data.short_deal === true;
         S.stackType = STACK_TYPES.includes(existing.data.stack_type) ? existing.data.stack_type : 'stebbins';
         S.stebbinsStartSuit = Number.isInteger(existing.data.stebbins_start_suit) ? existing.data.stebbins_start_suit : 2;
         S.stebbinsStartValue = Number.isInteger(existing.data.stebbins_start_value) ? existing.data.stebbins_start_value : 0;
@@ -1011,6 +1021,7 @@
         email: email,
         public_code: code,
         is_active: true,
+        short_deal: false,
         stack_type: 'stebbins',
         stebbins_start_suit: 2,
         stebbins_start_value: 0,
@@ -1020,6 +1031,7 @@
       S.email = email;
       S.publicCode = code;
       S.isActive = true;
+      S.shortDeal = false;
       S.stackType = 'stebbins';
       S.stebbinsStartSuit = 2;
       S.stebbinsStartValue = 0;
@@ -1032,6 +1044,7 @@
     }
     async function saveProfileStackSettings() {
       const payload = {
+        short_deal: S.shortDeal,
         stack_type: S.stackType,
         stebbins_start_suit: S.stebbinsStartSuit,
         stebbins_start_value: S.stebbinsStartValue,
@@ -1796,13 +1809,14 @@
       ].map((it) => '<option value="' + it[0] + '"' + (S.stackType === it[0] ? ' selected' : '') + '>' + it[1] + '</option>').join('');
       const stebbinsCardBlock = '<div class="delay-wrap"><div class="delay-row"><span>Stebbins Position 1 Card</span><strong>' + cardLabel(S.stebbinsStartSuit, S.stebbinsStartValue) + '</strong></div><div class="btn-row"><select id="settings-stebbins-value" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + VAL_SYMS.map((v, i) => '<option value="' + i + '"' + (S.stebbinsStartValue === i ? ' selected' : '') + '>' + v + '</option>').join('') + '</select><select id="settings-stebbins-suit" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + SUIT_NAMES.map((n, i) => '<option value="' + i + '"' + (S.stebbinsStartSuit === i ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></div></div>';
       const customBlock = '<div class="delay-wrap"><div class="delay-row"><span>Custom Stack</span><strong id="settings-custom-count">' + String(S.customStackCodes.length) + '/52</strong></div><button id="settings-camera-scan" class="btn-outline btn-full">Camera Input</button><textarea id="settings-custom-stack" style="width:100%;min-height:90px;margin-top:10px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:14px;padding:10px;">' + (S.customStackCodes || []).join(' ') + '</textarea><div class="tiny">Paste or scan card codes in order (example: AC 4H 7S ...)</div></div>';
-      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.publicCode || 'N/A') + '</strong></p><div><label>Card Stack</label><select id="settings-stack-type" style="width:100%;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + stackOptions + '</select></div><div id="settings-stebbins-wrap"' + (S.stackType === 'stebbins' ? '' : ' style="display:none;"') + '>' + stebbinsCardBlock + '</div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div><div><label>Start Trigger</label><input id="settings-start-trigger" type="text" value="' + (S.voice.startTrigger || 'okay') + '"></div><div><label>End Trigger</label><input id="settings-end-trigger" type="text" value="' + (S.voice.endTrigger || 'amazing') + '"></div><div class="delay-wrap"><div class="delay-row"><span>Microphone Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div></div><button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
+      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.publicCode || 'N/A') + '</strong></p><div><label>Card Stack</label><select id="settings-stack-type" style="width:100%;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + stackOptions + '</select></div><div id="settings-stebbins-wrap"' + (S.stackType === 'stebbins' ? '' : ' style="display:none;"') + '>' + stebbinsCardBlock + '</div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div><div class="active-toggle"><span class="active-label">Short Deal</span><button id="settings-short-deal" class="switch ' + (S.shortDeal ? 'on' : 'off') + '" aria-label="toggle short deal"></button><div class="toggle-state ' + (S.shortDeal ? 'on' : '') + '">' + (S.shortDeal ? 'ON' : 'OFF') + '</div></div><div><label>Start Trigger</label><input id="settings-start-trigger" type="text" value="' + (S.voice.startTrigger || 'okay') + '"></div><div><label>End Trigger</label><input id="settings-end-trigger" type="text" value="' + (S.voice.endTrigger || 'amazing') + '"></div><div class="delay-wrap"><div class="delay-row"><span>Microphone Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div></div><button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
     }
     function bindSettings() {
       el('settings-back').onclick = () => {
         const st = (el('settings-start-trigger').value || '').trim().toLowerCase();
         const et = (el('settings-end-trigger').value || '').trim().toLowerCase();
         const stackType = el('settings-stack-type').value || 'stebbins';
+        const shortDeal = !!(el('settings-short-deal') && el('settings-short-deal').classList.contains('on'));
         const stebbinsSuit = Number(el('settings-stebbins-suit') ? el('settings-stebbins-suit').value : S.stebbinsStartSuit);
         const stebbinsValue = Number(el('settings-stebbins-value') ? el('settings-stebbins-value').value : S.stebbinsStartValue);
         if (!st || !et) {
@@ -1816,6 +1830,7 @@
         S.voice.startTrigger = st;
         S.voice.endTrigger = et;
         S.stackType = stackType;
+        S.shortDeal = shortDeal;
         S.stebbinsStartSuit = Number.isInteger(stebbinsSuit) ? stebbinsSuit : 2;
         S.stebbinsStartValue = Number.isInteger(stebbinsValue) ? stebbinsValue : 0;
         if (stackType === 'custom') {
@@ -1844,6 +1859,19 @@
       }
       const camBtn = el('settings-camera-scan');
       if (camBtn) camBtn.onclick = () => go('camera-stack');
+      const shortDealBtn = el('settings-short-deal');
+      if (shortDealBtn) {
+        shortDealBtn.onclick = () => {
+          const next = !shortDealBtn.classList.contains('on');
+          shortDealBtn.classList.toggle('on', next);
+          shortDealBtn.classList.toggle('off', !next);
+          const state = shortDealBtn.parentElement ? shortDealBtn.parentElement.querySelector('.toggle-state') : null;
+          if (state) {
+            state.classList.toggle('on', next);
+            state.textContent = next ? 'ON' : 'OFF';
+          }
+        };
+      }
       initDelayPicker();
       el('logout-btn').onclick = async () => {
         const ok = window.confirm('Log out now?');
@@ -1851,7 +1879,7 @@
         await sb.auth.signOut();
         clearSessionWatchers();
         stopVoice();
-        S.user = null; S.email = ''; S.publicCode = ''; S.isActive = true;
+        S.user = null; S.email = ''; S.publicCode = ''; S.isActive = true; S.shortDeal = false;
         S.session = null; S.performResult = null; S.regCode = ''; S.regEmail = ''; S.regPublicCode = ''; S.loginEmail = '';
         go('welcome');
       };

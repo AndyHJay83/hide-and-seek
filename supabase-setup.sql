@@ -12,6 +12,7 @@ create table if not exists public.profiles (
   email text unique not null,
   public_code text unique not null,
   is_active boolean not null default true,
+  short_deal boolean not null default false,
   stack_type text not null default 'stebbins',
   stebbins_start_suit integer not null default 2,
   stebbins_start_value integer not null default 0,
@@ -21,6 +22,7 @@ create table if not exists public.profiles (
 
 alter table public.profiles add column if not exists public_code text;
 alter table public.profiles add column if not exists is_active boolean not null default true;
+alter table public.profiles add column if not exists short_deal boolean not null default false;
 alter table public.profiles add column if not exists stack_type text not null default 'stebbins';
 alter table public.profiles add column if not exists stebbins_start_suit integer not null default 2;
 alter table public.profiles add column if not exists stebbins_start_value integer not null default 0;
