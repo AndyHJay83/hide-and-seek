@@ -2009,16 +2009,21 @@
       const card = S.selfEntry[role];
       const preview = (card.suit == null || card.value == null) ? '' : cardLabel(card.suit, card.value);
       const nextDisabled = card.suit == null || card.value == null ? 'disabled' : '';
-      const rowBreakAfter = new Set([4, 9]);
+      const valCells = [
+        { type: 'btn', idx: 0 }, { type: 'btn', idx: 1 }, { type: 'btn', idx: 2 }, { type: 'btn', idx: 3 }, { type: 'btn', idx: 4 },
+        { type: 'btn', idx: 5 }, { type: 'btn', idx: 6 }, { type: 'btn', idx: 7 }, { type: 'btn', idx: 8 }, { type: 'btn', idx: 9 },
+        { type: 'spacer' }, { type: 'btn', idx: 10 }, { type: 'btn', idx: 11 }, { type: 'btn', idx: 12 }, { type: 'spacer' }
+      ];
       return '' +
         buildSelfStepDots(S.selfEntry.step) +
         '<h2 class="center">' + (isSeeker ? 'SEEKER' : 'HIDER') + '</h2>' +
         '<div class="entry-preview">' + preview + '</div>' +
         '<div id="self-val-grid" class="entry-val-grid">' +
-        VAL_SYMS.map((v, i) => {
+        valCells.map((cell) => {
+          if (cell.type === 'spacer') return '<div aria-hidden="true"></div>';
+          const i = cell.idx;
           const sel = card.value === i ? ' sel' : '';
-          const spacer = rowBreakAfter.has(i) ? '<div aria-hidden="true"></div>' : '';
-          return '<button class="entry-card-btn' + sel + '" data-v="' + i + '">' + v + '</button>' + spacer;
+          return '<button class="entry-card-btn' + sel + '" data-v="' + i + '">' + VAL_SYMS[i] + '</button>';
         }).join('') +
         '</div>' +
         '<div id="self-suit-row" class="entry-suit-row">' +

@@ -246,7 +246,11 @@
       const card = state[role];
       const preview = (card.suit == null || card.value == null) ? 'Select value and suit' : cardLabel(card.suit, card.value);
       const nextDisabled = card.suit == null || card.value == null ? 'disabled' : '';
-      const rowBreakAfter = new Set([4, 9]);
+      const valCells = [
+        { type: 'btn', idx: 0 }, { type: 'btn', idx: 1 }, { type: 'btn', idx: 2 }, { type: 'btn', idx: 3 }, { type: 'btn', idx: 4 },
+        { type: 'btn', idx: 5 }, { type: 'btn', idx: 6 }, { type: 'btn', idx: 7 }, { type: 'btn', idx: 8 }, { type: 'btn', idx: 9 },
+        { type: 'spacer' }, { type: 'btn', idx: 10 }, { type: 'btn', idx: 11 }, { type: 'btn', idx: 12 }, { type: 'spacer' }
+      ];
 
       const dot = (idx) => {
         let cls = 'dot';
@@ -262,10 +266,11 @@
         '<div class="center"><span class="role-chip">' + (isStep1 ? 'SEEKER' : 'HIDER') + '</span></div>' +
         '<div class="preview">' + preview + '</div>' +
         '<div class="val-grid" id="val-grid">' +
-        VALS.map((v, i) => {
+        valCells.map((cell) => {
+          if (cell.type === 'spacer') return '<div aria-hidden="true"></div>';
+          const i = cell.idx;
           const sel = card.value === i ? ' sel' : '';
-          const spacer = rowBreakAfter.has(i) ? '<div aria-hidden="true"></div>' : '';
-          return '<button class="card-btn' + sel + '" data-v="' + i + '">' + v + '</button>' + spacer;
+          return '<button class="card-btn' + sel + '" data-v="' + i + '">' + VALS[i] + '</button>';
         }).join('') +
         '</div>' +
         '<div class="suit-row" id="suit-row">' +
