@@ -1752,7 +1752,7 @@
     }
 
     function viewHome() {
-      return '<div class="home-header"><div class="logo logo-home">' + logoMarkup(true) + '</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button id="copy-public-link" class="code-chip">' + (S.tempCode || '----') + '</button><div id="temp-code-count" class="temp-code-count">' + formatCountdown(tempCodeRemaining()) + '</div><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div><button id="go-perform" class="action-tile solo-btn">PERFORM</button><div class="input-method-wrap"><select id="perform-input-method" class="input-method-select"><option value="voice"' + (S.performInputMethod === 'voice' ? ' selected' : '') + '>VOICE</option><option value="keypad"' + (S.performInputMethod === 'keypad' ? ' selected' : '') + '>KEYPAD</option></select></div><button id="go-accomplice" class="action-tile">ACCOMPLICE</button>' + buildInlineAccompliceBlock() + '<div class="active-toggle"><span class="active-label">ACTIVE</span><button id="toggle-active" class="switch ' + (S.isActive ? 'on' : 'off') + '" aria-label="toggle active"></button><div class="toggle-state ' + (S.isActive ? 'on' : '') + '">' + (S.isActive ? 'LIVE' : 'OFF') + '</div></div></div><div id="error-box" class="error"></div>';
+      return '<div class="home-header"><div class="logo logo-home">' + logoMarkup(true) + '</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button id="copy-public-link" class="code-chip">' + (S.tempCode || '----') + '</button><div id="temp-code-count" class="temp-code-count">' + formatCountdown(tempCodeRemaining()) + '</div><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div><button id="go-perform" class="action-tile solo-btn">PERFORM</button><div class="input-method-wrap"><select id="perform-input-method" class="input-method-select"><option value="voice"' + (S.performInputMethod === 'voice' ? ' selected' : '') + '>VOICE</option><option value="keypad"' + (S.performInputMethod === 'keypad' ? ' selected' : '') + '>KEYPAD</option></select></div><button id="go-accomplice" class="action-tile">ACCOMPLICE</button>' + buildInlineAccompliceBlock() + '</div><div id="error-box" class="error"></div>';
     }
     function bindHome() {
       el('open-settings').onclick = () => go('settings');
@@ -1822,17 +1822,20 @@
           window.prompt('Copy accomplice URL:', url);
         }
       };
-      el('toggle-active').onclick = async () => {
-        try {
-          await setProfileActive(!S.isActive);
-          if (!S.isActive && S.session) {
-            await sb.from('sessions').update({ expired: true }).eq('performer_id', S.profileId).eq('expired', false);
-            S.session = null;
-            S.showAccompliceInline = false;
-          }
-          render();
-        } catch (err) { showError(err.message || 'Could not update account status.'); }
-      };
+      const toggleActiveBtn = el('toggle-active');
+      if (toggleActiveBtn) {
+        toggleActiveBtn.onclick = async () => {
+          try {
+            await setProfileActive(!S.isActive);
+            if (!S.isActive && S.session) {
+              await sb.from('sessions').update({ expired: true }).eq('performer_id', S.profileId).eq('expired', false);
+              S.session = null;
+              S.showAccompliceInline = false;
+            }
+            render();
+          } catch (err) { showError(err.message || 'Could not update account status.'); }
+        };
+      }
 
       if (S.showAccompliceInline) {
         const sessUrl = accompliceUrl();
