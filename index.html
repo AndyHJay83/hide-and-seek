@@ -101,7 +101,7 @@
       align-items: center;
       width: clamp(220px, 40vw, 520px);
       height: clamp(18px, 2.6vw, 34px);
-      transform: translateX(0);
+      transform: translateX(0.14em);
       position: relative;
     }
     .logo-animated .rule-left,
@@ -153,7 +153,7 @@
     .logo-animated.compact .amp-row {
       width: clamp(170px, 26vw, 280px);
       height: clamp(14px, 1.8vw, 22px);
-      transform: translateX(0);
+      transform: translateX(0.11em);
     }
     .logo-animated.compact .amp-char {
       font-size: clamp(12px, 1.5vw, 20px);
@@ -488,6 +488,9 @@
       text-align: center;
       min-height: 14px;
     }
+    .toggle-state.settings-short-deal-state {
+      transform: translateY(1px);
+    }
     .toggle-state.on {
       color: rgba(49,255,112,0.9);
       text-shadow: 0 0 12px rgba(49,255,112,0.45);
@@ -640,7 +643,7 @@
     }
     .entry-val-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 8px;
       margin-bottom: 10px;
     }
@@ -654,7 +657,6 @@
       font-weight: 700;
       cursor: pointer;
     }
-    .entry-card-btn.king { grid-column: span 4; }
     .entry-card-btn.sel {
       border-color: rgba(255,255,255,0.7);
       background: rgba(255,255,255,0.12);
@@ -677,6 +679,11 @@
       place-items: center;
       gap: 1px;
       font-size: 13px;
+    }
+    .entry-suit-btn span {
+      display: block;
+      width: 100%;
+      text-align: center;
     }
     .entry-suit-btn span:first-child { font-size: 22px; line-height: 1; }
     .entry-suit-btn.sel {
@@ -1998,15 +2005,16 @@
       const card = S.selfEntry[role];
       const preview = (card.suit == null || card.value == null) ? '' : cardLabel(card.suit, card.value);
       const nextDisabled = card.suit == null || card.value == null ? 'disabled' : '';
+      const rowBreakAfter = new Set([4, 9]);
       return '' +
         buildSelfStepDots(S.selfEntry.step) +
         '<h2 class="center">' + (isSeeker ? 'SEEKER' : 'HIDER') + '</h2>' +
         '<div class="entry-preview">' + preview + '</div>' +
         '<div id="self-val-grid" class="entry-val-grid">' +
         VAL_SYMS.map((v, i) => {
-          const king = i === 12 ? ' king' : '';
           const sel = card.value === i ? ' sel' : '';
-          return '<button class="entry-card-btn' + king + sel + '" data-v="' + i + '">' + v + '</button>';
+          const spacer = rowBreakAfter.has(i) ? '<div aria-hidden="true"></div>' : '';
+          return '<button class="entry-card-btn' + sel + '" data-v="' + i + '">' + v + '</button>' + spacer;
         }).join('') +
         '</div>' +
         '<div id="self-suit-row" class="entry-suit-row">' +
@@ -2467,7 +2475,7 @@
       const customBlock = '<div class="delay-wrap"><div class="delay-row"><span>Custom Stack</span><strong id="settings-custom-count">' + String(S.customStackCodes.length) + '/52</strong></div><textarea id="settings-custom-stack" style="width:100%;min-height:90px;margin-top:10px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:14px;padding:10px;">' + (S.customStackCodes || []).join(' ') + '</textarea><div class="tiny">Paste card codes in order (example: AC 4H 7S ...)</div></div>';
       const p1 = topCardIndicesForSettings(S.stackType, S.topCardCode, S.customStackCodes);
       const position1Block = '<div id="settings-position1-wrap"' + (S.stackType === 'stebbins' ? ' style="display:none;"' : '') + '><div class="delay-wrap"><div class="delay-row"><span>Position 1 Card</span><strong>' + cardLabel(p1.suit, p1.value) + '</strong></div><div class="btn-row"><select id="settings-pos1-value" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + VAL_SYMS.map((v, i) => '<option value="' + i + '"' + (p1.value === i ? ' selected' : '') + '>' + v + '</option>').join('') + '</select><select id="settings-pos1-suit" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + SUIT_NAMES.map((n, i) => '<option value="' + i + '"' + (p1.suit === i ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></div><div class="tiny">Same controls as Stebbins. Matches the stack default when unchanged.</div></div></div>';
-      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Temp Code: <strong>' + (S.tempCode || '----') + '</strong></p><div><label>Card Stack</label><select id="settings-stack-type" style="width:100%;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + stackOptions + '</select></div><div id="settings-stebbins-wrap"' + (S.stackType === 'stebbins' ? '' : ' style="display:none;"') + '>' + stebbinsCardBlock + '</div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div>' + position1Block + '<div class="active-toggle"><span class="active-label">Short Deal</span><button id="settings-short-deal" class="switch ' + (S.shortDeal ? 'on' : 'off') + '" aria-label="toggle short deal"></button><div class="toggle-state ' + (S.shortDeal ? 'on' : '') + '">' + (S.shortDeal ? 'ON' : 'OFF') + '</div></div><div><label>Start Trigger</label><input id="settings-start-trigger" type="text" value="' + (S.voice.startTrigger || 'okay') + '"></div><div><label>End Trigger</label><input id="settings-end-trigger" type="text" value="' + (S.voice.endTrigger || 'amazing') + '"></div><div class="delay-wrap"><div class="delay-row"><span>Microphone Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div></div><button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
+      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.tempCode || '----') + '</strong> <span class="muted">(' + formatCountdown(tempCodeRemaining()) + ')</span></p><div><label>Card Stack</label><select id="settings-stack-type" style="width:100%;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + stackOptions + '</select></div><div id="settings-stebbins-wrap"' + (S.stackType === 'stebbins' ? '' : ' style="display:none;"') + '>' + stebbinsCardBlock + '</div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div>' + position1Block + '<div class="active-toggle"><span class="active-label">Short Deal</span><button id="settings-short-deal" class="switch ' + (S.shortDeal ? 'on' : 'off') + '" aria-label="toggle short deal"></button><div class="toggle-state settings-short-deal-state ' + (S.shortDeal ? 'on' : '') + '">' + (S.shortDeal ? 'ON' : 'OFF') + '</div></div><div><label>Start Trigger Word</label><input id="settings-start-trigger" type="text" value="' + (S.voice.startTrigger || 'okay') + '"></div><div><label>End Trigger Word</label><input id="settings-end-trigger" type="text" value="' + (S.voice.endTrigger || 'amazing') + '"></div><div class="delay-wrap"><div class="delay-row"><span>Microphone Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div class="tiny">0 = manual activation</div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div></div><button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
     }
     function bindSettings() {
       el('settings-back').onclick = () => {

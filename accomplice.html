@@ -99,7 +99,7 @@
     }
     .val-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 8px;
       margin-bottom: 12px;
     }
@@ -113,7 +113,6 @@
       font-weight: 700;
       cursor: pointer;
     }
-    .card-btn.king { grid-column: span 4; }
     .card-btn.sel {
       border-color: rgba(255,255,255,0.7);
       background: rgba(255,255,255,0.12);
@@ -137,11 +136,19 @@
       gap: 1px;
       font-size: 14px;
     }
+    .suit-btn span {
+      display: block;
+      width: 100%;
+      text-align: center;
+    }
     .suit-btn span:first-child { font-size: 24px; line-height: 1; }
     .suit-btn.sel {
       border-color: rgba(255,255,255,0.7);
       background: rgba(255,255,255,0.12);
       box-shadow: var(--glow-xs);
+    }
+    .suit-btn.red {
+      color: #ff5c5c;
     }
     .btn-primary, .btn-outline {
       width: 100%;
@@ -239,6 +246,7 @@
       const card = state[role];
       const preview = (card.suit == null || card.value == null) ? 'Select value and suit' : cardLabel(card.suit, card.value);
       const nextDisabled = card.suit == null || card.value == null ? 'disabled' : '';
+      const rowBreakAfter = new Set([4, 9]);
 
       const dot = (idx) => {
         let cls = 'dot';
@@ -255,15 +263,16 @@
         '<div class="preview">' + preview + '</div>' +
         '<div class="val-grid" id="val-grid">' +
         VALS.map((v, i) => {
-          const isKing = i === 12 ? ' king' : '';
           const sel = card.value === i ? ' sel' : '';
-          return '<button class="card-btn' + isKing + sel + '" data-v="' + i + '">' + v + '</button>';
+          const spacer = rowBreakAfter.has(i) ? '<div aria-hidden="true"></div>' : '';
+          return '<button class="card-btn' + sel + '" data-v="' + i + '">' + v + '</button>' + spacer;
         }).join('') +
         '</div>' +
         '<div class="suit-row" id="suit-row">' +
         SUITS.map((s) => {
           const sel = card.suit === s.idx ? ' sel' : '';
-          return '<button class="suit-btn' + sel + '" data-s="' + s.idx + '"><span>' + s.sym + '</span><span>' + s.name + '</span></button>';
+          const red = (s.idx === 1 || s.idx === 3) ? ' red' : '';
+          return '<button class="suit-btn' + sel + red + '" data-s="' + s.idx + '"><span>' + s.sym + '</span><span>' + s.name + '</span></button>';
         }).join('') +
         '</div>' +
         '<button id="next-btn" class="btn-primary" ' + nextDisabled + '>' + (isStep1 ? 'Next: Hider Card' : 'Next: Confirm') + '</button>' +
