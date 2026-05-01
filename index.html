@@ -1750,6 +1750,111 @@
       if (cells[0]) cells[0].focus();
     }
 
+    function levenshtein(a, b) {
+      if (!a.length) return b.length;
+      if (!b.length) return a.length;
+      const row = [];
+      for (let j = 0; j <= b.length; j++) row[j] = j;
+      for (let i = 1; i <= a.length; i++) {
+        let prev = i - 1;
+        row[0] = i;
+        for (let j = 1; j <= b.length; j++) {
+          const tmp = row[j];
+          const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+          row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + cost);
+          prev = tmp;
+        }
+      }
+      return row[b.length];
+    }
+    function fuzzyFixRoleTokens(words) {
+      const targets = ['seeker', 'hider'];
+      return words.map((word) => {
+        if (word.length < 4) return word;
+        let best = word;
+        let bestDist = 99;
+        for (let r = 0; r < targets.length; r++) {
+          const d = levenshtein(word, targets[r]);
+          const maxD = word.length >= 6 ? 2 : 1;
+          if (d <= maxD && d < bestDist) {
+            bestDist = d;
+            best = targets[r];
+          }
+        }
+        return bestDist <= 2 && best !== word ? best : word;
+      });
+    }
+    function normalizePerformanceTranscript(preCleanedLower) {
+      let t = (preCleanedLower || '').replace(/\s+/g, ' ').trim();
+      const phraseFixes = [
+        [/\bseek\s+her\b/g, 'seeker'],
+        [/\bsee\s+ker\b/g, 'seeker'],
+        [/\bsee\s+cur\b/g, 'seeker'],
+        [/\bhi\s+der\b/g, 'hider'],
+        [/\bhigh\s+der\b/g, 'hider'],
+        [/\bhyder\b/g, 'hider'],
+        [/\bhider\b/g, 'hider'],
+        [/\bseekers?\b/g, 'seeker'],
+        [/\bhiders?\b/g, 'hider'],
+        [/\bsecret\b/g, 'seeker'],
+        [/\bseekret\b/g, 'seeker'],
+        [/\bsicker\b/g, 'seeker'],
+        [/\bfourth\b/g, 'four'],
+        [/\bfifth\b/g, 'five'],
+        [/\bsixth\b/g, 'six'],
+        [/\bseventh\b/g, 'seven'],
+        [/\beighth\b/g, 'eight'],
+        [/\bninth\b/g, 'nine'],
+        [/\btenth\b/g, 'ten'],
+        [/\bsecond\b/g, 'two'],
+        [/\bthird\b/g, 'three'],
+        [/\bhart\b/g, 'heart'],
+        [/\bclubs\b/g, 'clubs'],
+        [/\bclark\b/g, 'clubs'],
+        [/\bdiamonds\b/g, 'diamonds'],
+        [/\bspades\b/g, 'spades'],
+        [/\bhearts\b/g, 'hearts']
+      ];
+      for (let i = 0; i < phraseFixes.length; i++) {
+        t = t.replace(phraseFixes[i][0], phraseFixes[i][1]);
+      }
+      const words = t.split(' ').filter(Boolean);
+      return fuzzyFixRoleTokens(words).join(' ');
+    }
+    function rankValueFromToken(tok) {
+      const valMap = { ace: 0, one: 0, a: 0, two: 1, to: 1, too: 1, three: 2, four: 3, for: 3, five: 4, six: 5, seven: 6, eight: 7, ate: 7, nine: 8, ten: 9, jack: 10, queen: 11, king: 12, j: 10, q: 11, k: 12 };
+      const t = (tok || '').toLowerCase();
+      if (/^\d+$/.test(t)) {
+        const n = Number(t);
+        if (n === 1) return 0;
+        if (n >= 2 && n <= 10) return n - 1;
+        if (n === 11) return 10;
+        if (n === 12) return 11;
+        if (n === 13) return 12;
+        return null;
+      }
+      const v = valMap[t];
+      return v != null ? v : null;
+    }
+    function suitValueFromToken(tok) {
+      const suitMap = { spade: 0, spades: 0, heart: 1, hearts: 1, club: 2, clubs: 2, diamond: 3, diamonds: 3 };
+      const t = (tok || '').toLowerCase();
+      return suitMap[t] != null ? suitMap[t] : null;
+    }
+    function extractCardsFromRegex(windowText) {
+      const rank = '(?:ace|one|two|three|four|for|five|six|seven|eight|ate|nine|ten|jack|queen|king|j|q|k|10|2|3|4|5|6|7|8|9)';
+      const suit = '(?:spades?|hearts?|clubs?|diamonds?)';
+      const re = new RegExp('\\b(' + rank + ')\\b(?:\\s+of)?\\s*\\b(' + suit + ')\\b', 'gi');
+      const out = [];
+      let m;
+      while ((m = re.exec(windowText)) !== null) {
+        const rv = rankValueFromToken(m[1]);
+        const sv = suitValueFromToken(m[2]);
+        if (rv == null || sv == null) continue;
+        out.push({ value: rv, suit: sv, idx: windowText.slice(0, m.index).split(/\s+/).filter(Boolean).length });
+      }
+      return out;
+    }
     function parseVoiceCards(raw, startTrigger, endTrigger) {
       const text = (raw || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
       const normalizedStart = (startTrigger || 'okay').toLowerCase().trim();
@@ -1757,13 +1862,14 @@
       const startIdx = normalizedStart ? text.indexOf(normalizedStart) : -1;
       const endIdx = normalizedEnd ? text.lastIndexOf(normalizedEnd) : -1;
       const startOffset = startIdx >= 0 ? normalizedStart.length : 0;
-      const windowText = (startIdx >= 0 && endIdx > startIdx)
+      let windowText = (startIdx >= 0 && endIdx > startIdx)
         ? text.slice(startIdx + startOffset, endIdx).trim()
         : text;
-      const tokens = windowText.split(' ');
+      windowText = normalizePerformanceTranscript(windowText);
+      const tokens = windowText.split(' ').filter(Boolean);
       const valMap = { ace: 0, one: 0, a: 0, two: 1, to: 1, too: 1, three: 2, four: 3, for: 3, five: 4, six: 5, seven: 6, eight: 7, ate: 7, nine: 8, ten: 9, jack: 10, queen: 11, king: 12, j: 10, q: 11, k: 12 };
       const suitMap = { spade: 0, spades: 0, heart: 1, hearts: 1, club: 2, clubs: 2, diamond: 3, diamonds: 3 };
-      const cards = [];
+      let cards = [];
       for (let i = 0; i < tokens.length; i++) {
         const t = tokens[i];
         const value = /^\d+$/.test(t) ? (Number(t) === 1 ? 0 : Number(t) - 1) : valMap[t];
@@ -1772,6 +1878,10 @@
         for (let j = i + 1; j <= Math.min(i + 3, tokens.length - 1); j++) { if (suitMap[tokens[j]] != null) { suit = suitMap[tokens[j]]; break; } }
         if (suit == null) for (let j = Math.max(0, i - 2); j < i; j++) { if (suitMap[tokens[j]] != null) { suit = suitMap[tokens[j]]; break; } }
         if (suit != null) cards.push({ value, suit, idx: i });
+      }
+      if (cards.length < 2) {
+        const regCards = extractCardsFromRegex(windowText);
+        if (regCards.length >= 2) cards = regCards;
       }
       if (cards.length < 2) return { error: 'Could not detect two cards clearly.' };
       let seeker = null;
