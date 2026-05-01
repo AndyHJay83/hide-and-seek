@@ -258,6 +258,47 @@
       border-color: rgba(171, 219, 255, 0.95);
       box-shadow: 0 0 0 1px rgba(171, 219, 255, 0.3), 0 0 20px rgba(141, 205, 255, 0.42);
     }
+    .settings-stack-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .stack-info-btn {
+      width: 24px;
+      height: 24px;
+      min-height: 24px;
+      border-radius: 999px;
+      border: 1px solid var(--border-mid);
+      background: transparent;
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1;
+      padding: 0;
+      flex: 0 0 auto;
+    }
+    .stack-order-ref {
+      margin-top: 8px;
+      border: 1px solid var(--border-mid);
+      border-radius: 10px;
+      padding: 10px;
+      background: #0a0a0a;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.35;
+      color: rgba(255,255,255,0.8);
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 140px;
+      overflow-y: auto;
+    }
+    .stack-order-ref.hidden {
+      display: none;
+    }
     .input-method-label {
       display: block;
       text-align: center;
@@ -756,6 +797,35 @@
       border-radius: 8px;
       font-size: 11px;
       letter-spacing: 0.08em;
+      z-index: 131;
+    }
+    .solo-hidden-input {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 50vh;
+      width: 100%;
+      max-width: none;
+      margin: 0;
+      padding: max(12px, env(safe-area-inset-bottom));
+      box-sizing: border-box;
+      border: 0;
+      border-radius: 0;
+      resize: none;
+      background: transparent;
+      color: transparent;
+      caret-color: transparent;
+      outline: none;
+      font-size: 16px;
+      line-height: 1.35;
+      z-index: 125;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .solo-hidden-input:disabled {
+      pointer-events: none;
+      opacity: 0;
     }
     .perform-timer {
       position: fixed;
@@ -1309,6 +1379,30 @@
         if (n) return n;
       }
       return cardCodeFromIdx(0, 0);
+    }
+    function orderedCodesFromMap(map) {
+      const out = new Array(52).fill('');
+      Object.keys(map || {}).forEach((code) => {
+        const p = Number(map[code]);
+        if (!Number.isFinite(p) || p < 1 || p > 52) return;
+        out[p - 1] = code;
+      });
+      return out;
+    }
+    function stackOrderCodesForSettings(stackType, stebSuit, stebVal, customCodes) {
+      if (stackType === 'stebbins') return orderedCodesFromMap(buildStebbinsMap(stebSuit, stebVal));
+      if (stackType === 'ndo') return orderedCodesFromMap(buildNdoMap());
+      if (stackType === 'custom') {
+        const list = (customCodes || []).map((c) => normalizeCardCode(c)).filter(Boolean);
+        return list;
+      }
+      const fixed = STACK_CODES[stackType] || [];
+      return fixed.map((c) => normalizeCardCode(c)).filter(Boolean);
+    }
+    function stackOrderReferenceText(stackType, stebSuit, stebVal, customCodes) {
+      const codes = stackOrderCodesForSettings(stackType, stebSuit, stebVal, customCodes);
+      if (!codes.length) return 'No cards configured yet.';
+      return codes.map((code, idx) => String(idx + 1).padStart(2, '0') + ': ' + code).join('   ');
     }
     function topCardIndicesForSettings(stackType, topCode, customCodes) {
       const def = defaultPositionOneCodeForStack(stackType, customCodes);
@@ -1987,7 +2081,7 @@
       return '<div style="margin-top:6px;"><div class="' + phraseClass + '" style="font-size:clamp(22px,6vw,44px);text-align:center;">' + phrase + '</div><div class="perform-sub" style="text-align:center;">' + cardLabel(result.parsed.seeker.suit, result.parsed.seeker.value) + '</div><div class="perform-sub" style="text-align:center;">' + cardLabel(result.parsed.hider.suit, result.parsed.hider.value) + '</div></div>';
     }
     function viewSoloPerform() {
-      return '<div class="solo-screen"><button id="solo-back" class="perform-exit">EXIT</button><div id="solo-main"><div class="perform-awaiting">SOLO READY</div></div><div id="solo-status" class="solo-hint"></div><div id="solo-triggers-hint" class="solo-triggers-hint"></div></div><div id="error-box" class="error"></div>';
+      return '<div class="solo-screen"><button id="solo-back" class="perform-exit">EXIT</button><div id="solo-main"><div class="perform-awaiting">SOLO READY</div></div><div id="solo-status" class="solo-hint"></div><div id="solo-triggers-hint" class="solo-triggers-hint"></div><textarea id="solo-hidden-input" class="solo-hidden-input" aria-label="Card transcription input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text"></textarea></div><div id="error-box" class="error"></div>';
     }
     function viewSelfKeypad() {
       return '<div class="logo">' + logoMarkup() + '</div><div id="self-keypad-root" class="panel stack"></div><div id="error-box" class="error"></div>';
@@ -2324,90 +2418,74 @@
       }
       renderCameraReview();
     }
-    function startSoloListening() {
-      if (S.voice.listening) return;
-      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SR) {
-        showError('Speech recognition is not supported in this browser.');
+    function tryProcessSoloHiddenInput() {
+      const ta = el('solo-hidden-input');
+      if (!ta || ta.disabled) return;
+      const raw = ta.value || '';
+      const endT = (S.voice.endTrigger || 'amazing').toLowerCase();
+      if (!endT || !raw.toLowerCase().includes(endT)) return;
+      const parsed = parseVoiceCards(raw, S.voice.startTrigger, S.voice.endTrigger);
+      if (parsed.error) {
+        setText('solo-status', parsed.error);
         return;
       }
-      S.voice.parsed = null;
-      S.voice.result = null;
-      S.voice.transcript = '';
-      const rec = new SR();
-      rec.lang = 'en-US';
-      rec.continuous = true;
-      rec.interimResults = true;
-      S.voice.rec = rec;
-      S.voice.listening = true;
-      setText('solo-status', 'Listening...');
-      rec.onresult = (event) => {
-        let full = '';
-        for (let i = 0; i < event.results.length; i++) full += event.results[i][0].transcript + ' ';
-        S.voice.transcript = full.trim();
-        const heardEndTrigger = S.voice.transcript.toLowerCase().includes(S.voice.endTrigger);
-        if (!heardEndTrigger) return;
-        const parsed = parseVoiceCards(S.voice.transcript, S.voice.startTrigger, S.voice.endTrigger);
-        stopVoice();
-        if (parsed.error) {
-          setText('solo-status', parsed.error);
-          return;
-        }
-        const diff = calcDiff(parsed.seeker.suit, parsed.seeker.value, parsed.hider.suit, parsed.hider.value);
-        const phrase = phraseForDiff(diff);
-        const phraseClass = diff < 0 ? 'perform-phrase neg' : 'perform-phrase';
-        const main = el('solo-main');
-        if (main) {
-          main.innerHTML = '<div class="' + phraseClass + '">' + phrase + '</div><div class="perform-sub">' + cardLabel(parsed.seeker.suit, parsed.seeker.value) + '</div><div class="perform-sub">' + cardLabel(parsed.hider.suit, parsed.hider.value) + '</div>';
-        }
-        setText('solo-status', 'Captured.');
-      };
-      rec.onerror = () => { S.voice.listening = false; setText('solo-status', 'Voice error'); };
-      rec.onend = () => {
-        const wasListening = S.voice.listening;
-        S.voice.listening = false;
-        if (wasListening && S.soloDelaySec === 0) setText('solo-status', 'Double tap lower half to start/stop microphone');
-      };
-      rec.start();
+      const diff = calcDiff(parsed.seeker.suit, parsed.seeker.value, parsed.hider.suit, parsed.hider.value);
+      const phrase = phraseForDiff(diff);
+      const phraseClass = diff < 0 ? 'perform-phrase neg' : 'perform-phrase';
+      const main = el('solo-main');
+      if (main) {
+        main.innerHTML = '<div class="' + phraseClass + '">' + phrase + '</div><div class="perform-sub">' + cardLabel(parsed.seeker.suit, parsed.seeker.value) + '</div><div class="perform-sub">' + cardLabel(parsed.hider.suit, parsed.hider.value) + '</div>';
+      }
+      ta.value = '';
+      try { ta.blur(); } catch (_) {}
+      setText('solo-status', 'Captured. Tap lower half to enter another.');
     }
     function bindSoloPerform() {
       const back = el('solo-back');
-      if (back) back.onclick = () => go('home');
+      if (back) back.onclick = () => { stopVoice(); go('home'); };
       const trigHint = el('solo-triggers-hint');
       if (trigHint) {
         const st = (S.voice.startTrigger || 'okay').trim();
         const et = (S.voice.endTrigger || 'amazing').trim();
         trigHint.textContent = 'Start: "' + st + '" · End: "' + et + '"';
       }
+      const hidden = el('solo-hidden-input');
+      if (hidden) {
+        hidden.value = '';
+        if (S.soloDelaySec > 0) {
+          hidden.disabled = true;
+        } else {
+          hidden.disabled = false;
+        }
+        hidden.addEventListener('input', tryProcessSoloHiddenInput);
+        hidden.addEventListener('focus', () => {
+          if (!hidden.disabled) setText('solo-status', 'Type or use keyboard dictation. Say your end trigger when finished.');
+        });
+      }
       const screen = document.querySelector('.solo-screen');
-      if (screen) {
-        screen.ondblclick = (e) => {
+      if (screen && hidden) {
+        screen.addEventListener('click', (e) => {
           if (e.clientY < window.innerHeight / 2) return;
-          if (S.soloDelaySec === 0) {
-            if (S.voice.listening) {
-              stopVoice();
-              setText('solo-status', 'Stopped');
-            } else {
-              startSoloListening();
-            }
-          }
-        };
+          if (hidden.disabled) return;
+          hidden.focus();
+        });
       }
       if (S.soloDelaySec > 0) {
         let remaining = S.soloDelaySec;
-        setText('solo-status', 'Listening starts in ' + remaining + 's');
+        setText('solo-status', 'Input unlocks in ' + remaining + 's');
         S.soloCountdownIntv = setInterval(() => {
           remaining -= 1;
           if (remaining <= 0) {
             clearInterval(S.soloCountdownIntv);
             S.soloCountdownIntv = null;
-            startSoloListening();
+            if (hidden) hidden.disabled = false;
+            setText('solo-status', 'Tap lower half to type or dictate (use keyboard mic for no browser mic sounds).');
           } else {
-            setText('solo-status', 'Listening starts in ' + remaining + 's');
+            setText('solo-status', 'Input unlocks in ' + remaining + 's');
           }
         }, 1000);
       } else {
-        setText('solo-status', 'Double tap lower half to start/stop microphone');
+        setText('solo-status', 'Tap lower half to type or dictate (use keyboard mic for no browser mic sounds).');
       }
     }
     function viewVoice() {
@@ -2481,9 +2559,27 @@
       const customBlock = '<div class="delay-wrap"><div class="delay-row"><span>Custom Stack</span><strong id="settings-custom-count">' + String(S.customStackCodes.length) + '/52</strong></div><textarea id="settings-custom-stack" style="width:100%;min-height:90px;margin-top:10px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:14px;padding:10px;">' + (S.customStackCodes || []).join(' ') + '</textarea><div class="tiny">Paste card codes in order (example: AC 4H 7S ...)</div></div>';
       const p1 = topCardIndicesForSettings(S.stackType, S.topCardCode, S.customStackCodes);
       const position1Block = '<div id="settings-position1-wrap"' + (S.stackType === 'stebbins' ? ' style="display:none;"' : '') + '><div class="delay-wrap"><div class="delay-row"><span>Position 1 Card</span><strong>' + cardLabel(p1.suit, p1.value) + '</strong></div><div class="btn-row"><select id="settings-pos1-value" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + VAL_SYMS.map((v, i) => '<option value="' + i + '"' + (p1.value === i ? ' selected' : '') + '>' + v + '</option>').join('') + '</select><select id="settings-pos1-suit" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + SUIT_NAMES.map((n, i) => '<option value="' + i + '"' + (p1.suit === i ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></div><div class="tiny">Same controls as Stebbins. Matches the stack default when unchanged.</div></div></div>';
-      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.tempCode || '----') + '</strong> <span class="muted">(' + formatCountdown(tempCodeRemaining()) + ')</span></p><div><label>Card Stack</label><select id="settings-stack-type" style="width:100%;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + stackOptions + '</select></div><div id="settings-stebbins-wrap"' + (S.stackType === 'stebbins' ? '' : ' style="display:none;"') + '>' + stebbinsCardBlock + '</div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div>' + position1Block + '<div class="active-toggle"><span class="active-label">Short Deal</span><button id="settings-short-deal" class="switch ' + (S.shortDeal ? 'on' : 'off') + '" aria-label="toggle short deal"></button><div class="toggle-state settings-short-deal-state ' + (S.shortDeal ? 'on' : '') + '">' + (S.shortDeal ? 'ON' : 'OFF') + '</div></div><div><label>Start Trigger Word</label><input id="settings-start-trigger" type="text" value="' + (S.voice.startTrigger || 'okay') + '"></div><div><label>End Trigger Word</label><input id="settings-end-trigger" type="text" value="' + (S.voice.endTrigger || 'amazing') + '"></div><div class="delay-wrap"><div class="delay-row"><span>Microphone Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div class="tiny">0 = manual activation</div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div></div><button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
+      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.tempCode || '----') + '</strong> <span class="muted">(' + formatCountdown(tempCodeRemaining()) + ')</span></p><div><div class="settings-stack-head"><label style="margin:0;">Card Stack</label><button id="settings-stack-info" type="button" class="stack-info-btn" aria-label="Show stack order reference">i</button></div><select id="settings-stack-type" style="width:100%;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + stackOptions + '</select><div id="settings-stack-order" class="stack-order-ref hidden"></div></div><div id="settings-stebbins-wrap"' + (S.stackType === 'stebbins' ? '' : ' style="display:none;"') + '>' + stebbinsCardBlock + '</div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div>' + position1Block + '<div class="active-toggle"><span class="active-label">Short Deal</span><button id="settings-short-deal" class="switch ' + (S.shortDeal ? 'on' : 'off') + '" aria-label="toggle short deal"></button><div class="toggle-state settings-short-deal-state ' + (S.shortDeal ? 'on' : '') + '">' + (S.shortDeal ? 'ON' : 'OFF') + '</div></div><div><label>Start Trigger Word</label><input id="settings-start-trigger" type="text" value="' + (S.voice.startTrigger || 'okay') + '"></div><div><label>End Trigger Word</label><input id="settings-end-trigger" type="text" value="' + (S.voice.endTrigger || 'amazing') + '"></div><div class="delay-wrap"><div class="delay-row"><span>Microphone Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div class="tiny">0 = manual activation</div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div></div><button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
     }
     function bindSettings() {
+      const stackRef = el('settings-stack-order');
+      const refreshStackRef = () => {
+        if (!stackRef) return;
+        const stype = (el('settings-stack-type') ? el('settings-stack-type').value : S.stackType) || 'stebbins';
+        const stebSuit = Number(el('settings-stebbins-suit') ? el('settings-stebbins-suit').value : S.stebbinsStartSuit);
+        const stebVal = Number(el('settings-stebbins-value') ? el('settings-stebbins-value').value : S.stebbinsStartValue);
+        const customRaw = (el('settings-custom-stack') ? el('settings-custom-stack').value : (S.customStackCodes || []).join(' ')).trim();
+        const parsedCustom = parseCardCodesFromText(customRaw);
+        stackRef.textContent = stackOrderReferenceText(stype, stebSuit, stebVal, parsedCustom);
+      };
+      const stackInfoBtn = el('settings-stack-info');
+      if (stackInfoBtn && stackRef) {
+        stackInfoBtn.onclick = () => {
+          const show = stackRef.classList.contains('hidden');
+          if (show) refreshStackRef();
+          stackRef.classList.toggle('hidden', !show);
+        };
+      }
       el('settings-back').onclick = () => {
         const st = (el('settings-start-trigger').value || '').trim().toLowerCase();
         const et = (el('settings-end-trigger').value || '').trim().toLowerCase();
@@ -2542,8 +2638,15 @@
           if (wrap) wrap.style.display = stackSel.value === 'stebbins' ? '' : 'none';
           if (customWrap) customWrap.style.display = stackSel.value === 'custom' ? '' : 'none';
           if (pos1Wrap) pos1Wrap.style.display = stackSel.value === 'stebbins' ? 'none' : '';
+          refreshStackRef();
         };
       }
+      const stebSuitSel = el('settings-stebbins-suit');
+      if (stebSuitSel) stebSuitSel.onchange = refreshStackRef;
+      const stebValSel = el('settings-stebbins-value');
+      if (stebValSel) stebValSel.onchange = refreshStackRef;
+      const customInput = el('settings-custom-stack');
+      if (customInput) customInput.addEventListener('input', refreshStackRef);
       const shortDealBtn = el('settings-short-deal');
       if (shortDealBtn) {
         shortDealBtn.onclick = () => {
