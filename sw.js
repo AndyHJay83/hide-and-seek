@@ -1,5 +1,12 @@
-const CACHE_NAME = 'has-v2';
-const STATIC_ASSETS = ['./index.html', './accomplice.html', './config.js', './manifest.json'];
+const CACHE_NAME = 'has-v3';
+const STATIC_ASSETS = [
+  './index.html',
+  './accomplice.html',
+  './config.js',
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
