@@ -1246,6 +1246,9 @@
     }
     function mapSetupError(err) {
       const msg = err && err.message ? String(err.message) : '';
+      if (/sessions_performer_id_fkey/i.test(msg)) {
+        return 'Your database still ties sessions to the wrong table (often auth.users). In Supabase → SQL Editor, run fix-sessions-performer-fkey.sql from this app’s repo, then try again.';
+      }
       if (/row-level security policy.*\bsessions\b/i.test(msg)) {
         return 'Sessions are blocked by database rules. In Supabase → SQL Editor, run fix-sessions-rls-for-anon.sql from this app’s repo (same project as your Supabase URL in config.js), then try again.';
       }
