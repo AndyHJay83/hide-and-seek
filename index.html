@@ -1076,6 +1076,13 @@
       if (!Number.isFinite(ts)) return true;
       return Date.now() >= ts;
     }
+    function mapSetupError(err) {
+      const msg = err && err.message ? String(err.message) : '';
+      if (/column .*temp_code.* does not exist/i.test(msg)) {
+        return 'Database not migrated yet: run supabase-setup.sql (or fix-temp-code-columns.sql) in Supabase SQL Editor.';
+      }
+      return msg || 'Something went wrong.';
+    }
     function phraseForDiff(diff) {
       const abs = Math.abs(diff);
       if (!PHRASES[abs]) {
@@ -1255,7 +1262,7 @@
     async function loadProfile() {
       if (!S.profileId) return;
       const { data, error } = await sb.from('profiles').select('id, email, temp_code, temp_code_expires_at, is_active, short_deal, static_stack, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json').eq('id', S.profileId).maybeSingle();
-      if (error) throw error;
+      if (error) throw new Error(mapSetupError(error));
       if (data) {
         S.profileId = data.id || S.profileId;
         S.email = data.email || '';
@@ -1308,7 +1315,7 @@
           S.tempCodeExpiresAt = expiresAt;
           return next;
         }
-        if (error.code !== '23505') throw error;
+        if (error.code !== '23505') throw new Error(mapSetupError(error));
       }
       throw new Error('Could not allocate a temporary code. Please try again.');
     }
@@ -1452,7 +1459,7 @@
           startCodeRefreshTimer();
           go('home');
         } catch (err) {
-          showError(err.message || 'Could not log in.');
+          showError(mapSetupError(err) || 'Could not log in.');
         } finally {
           setBtn(btn, false);
         }

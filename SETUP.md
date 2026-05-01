@@ -110,6 +110,7 @@ Notes:
 - Temp code not appearing:
   - Check `profiles_temp_code_key` unique index exists.
   - Check `temp_code_expires_at` column exists and is writable.
+  - If upgrading from an older schema, run `fix-temp-code-columns.sql`.
 - Accomplice shows invalid/expired:
   - Confirm URL contains `?s=<uuid>` or `/accomplice/<4-digit-code>`.
   - Confirm session still within 60 minutes and not marked expired.
