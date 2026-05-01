@@ -2528,6 +2528,20 @@
       }
       renderCameraReview();
     }
+    function focusSoloHiddenInput(ta) {
+      if (!ta || ta.disabled) return;
+      const run = () => {
+        try {
+          ta.focus({ preventScroll: true });
+        } catch (_) {
+          try { ta.focus(); } catch (_2) {}
+        }
+      };
+      run();
+      requestAnimationFrame(run);
+      setTimeout(run, 50);
+      setTimeout(run, 300);
+    }
     function tryProcessSoloHiddenInput() {
       const ta = el('solo-hidden-input');
       if (!ta || ta.disabled) return;
@@ -2589,13 +2603,15 @@
             clearInterval(S.soloCountdownIntv);
             S.soloCountdownIntv = null;
             if (hidden) hidden.disabled = false;
-            setText('solo-status', 'Tap lower half to type or dictate (use keyboard mic for no browser mic sounds).');
+            setText('solo-status', 'Keyboard should open — tap the mic on the keyboard to dictate, then your end trigger when finished.');
+            focusSoloHiddenInput(hidden);
           } else {
             setText('solo-status', 'Input unlocks in ' + remaining + 's');
           }
         }, 1000);
       } else {
         setText('solo-status', 'Tap lower half to type or dictate (use keyboard mic for no browser mic sounds).');
+        focusSoloHiddenInput(hidden);
       }
     }
     function viewVoice() {
