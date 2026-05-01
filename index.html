@@ -1393,6 +1393,10 @@
       const s = String(sec % 60).padStart(2, '0');
       return m + ':' + s;
     }
+    function accompliceUrl() {
+      const base = APP_URL.replace(/\/$/, '') + '/accomplice/' + (S.tempCode || '');
+      return (S.session && S.session.id) ? (base + '?s=' + encodeURIComponent(S.session.id)) : base;
+    }
     function stopVoice() {
       if (S.voice.rec) {
         S.voice.rec.onend = null;
@@ -1810,7 +1814,7 @@
         } catch (err) {
           return showError(err.message || 'Could not prepare active session.');
         }
-        const url = APP_URL.replace(/\/$/, '') + '/accomplice/' + S.tempCode;
+        const url = accompliceUrl();
         try {
           await navigator.clipboard.writeText(url);
           showToast('Copied');
@@ -1831,7 +1835,7 @@
       };
 
       if (S.showAccompliceInline) {
-        const sessUrl = APP_URL.replace(/\/$/, '') + '/accomplice/' + S.tempCode;
+        const sessUrl = accompliceUrl();
         const q = el('home-inline-qr');
         if (q) {
           q.innerHTML = '';
@@ -1903,7 +1907,7 @@
         if (!S.tempCode) throw new Error('No temporary code set on your profile.');
         if (!S.isActive) throw new Error('Account is inactive. Activate account to use accomplice links.');
         if (!S.session || sessionRemaining() <= 0 || S.session.expired) await createNewSession();
-        const sessUrl = APP_URL.replace(/\/$/, '') + '/accomplice/' + S.tempCode;
+        const sessUrl = accompliceUrl();
         const q = el('qr-box'); q.innerHTML = '';
         new QRCode(q, { text: sessUrl, width: 200, height: 200, colorDark: '#000', colorLight: '#fff' });
         el('copy-link').onclick = async () => {
