@@ -1,18 +1,10 @@
 create extension if not exists "uuid-ossp";
 
-create table if not exists public.purchase_codes (
-  code text primary key,
-  redeemed boolean not null default false,
-  redeemed_by uuid references auth.users(id),
-  redeemed_at timestamptz
-);
-
 create table if not exists public.profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
+  id uuid primary key default uuid_generate_v4(),
   email text unique not null,
-  public_code text unique not null,
-  pin_hash text,
-  pin_salt text,
+  temp_code text,
+  temp_code_expires_at timestamptz,
   is_active boolean not null default true,
   short_deal boolean not null default false,
   static_stack boolean not null default false,
@@ -23,9 +15,8 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 
-alter table public.profiles add column if not exists public_code text;
-alter table public.profiles add column if not exists pin_hash text;
-alter table public.profiles add column if not exists pin_salt text;
+alter table public.profiles add column if not exists temp_code text;
+alter table public.profiles add column if not exists temp_code_expires_at timestamptz;
 alter table public.profiles add column if not exists is_active boolean not null default true;
 alter table public.profiles add column if not exists short_deal boolean not null default false;
 alter table public.profiles add column if not exists static_stack boolean not null default false;
@@ -33,11 +24,11 @@ alter table public.profiles add column if not exists stack_type text not null de
 alter table public.profiles add column if not exists stebbins_start_suit integer not null default 2;
 alter table public.profiles add column if not exists stebbins_start_value integer not null default 0;
 alter table public.profiles add column if not exists custom_stack_json jsonb;
-create unique index if not exists profiles_public_code_key on public.profiles(public_code);
-alter table public.profiles drop constraint if exists profiles_public_code_format_chk;
+create unique index if not exists profiles_temp_code_key on public.profiles(temp_code) where temp_code is not null;
+alter table public.profiles drop constraint if exists profiles_temp_code_format_chk;
 alter table public.profiles
-  add constraint profiles_public_code_format_chk
-  check (public_code is null or public_code ~ '^[0-9]$');
+  add constraint profiles_temp_code_format_chk
+  check (temp_code is null or temp_code ~ '^[0-9]{4}$');
 alter table public.profiles drop constraint if exists profiles_stack_type_chk;
 alter table public.profiles
   add constraint profiles_stack_type_chk
@@ -53,7 +44,7 @@ alter table public.profiles
 
 create table if not exists public.sessions (
   id uuid primary key default uuid_generate_v4(),
-  performer_id uuid not null references auth.users(id) on delete cascade,
+  performer_id uuid not null references public.profiles(id) on delete cascade,
   created_at timestamptz not null default now(),
   seeker_suit integer,
   seeker_value integer,
@@ -67,60 +58,30 @@ create table if not exists public.sessions (
   constraint sessions_hider_value_chk check (hider_value between 0 and 12 or hider_value is null)
 );
 
-alter table public.purchase_codes enable row level security;
 alter table public.profiles enable row level security;
 alter table public.sessions enable row level security;
 
-drop policy if exists "purchase_codes_anon_select" on public.purchase_codes;
-create policy "purchase_codes_anon_select"
-on public.purchase_codes
-for select
-to anon, authenticated
-using (true);
-
-drop policy if exists "purchase_codes_auth_redeem_update" on public.purchase_codes;
-create policy "purchase_codes_auth_redeem_update"
-on public.purchase_codes
-for update
-to authenticated
-using (redeemed = false)
-with check (
-  redeemed = true
-  and redeemed_by = auth.uid()
-  and redeemed_at is not null
-);
-
-drop policy if exists "profiles_auth_select_own" on public.profiles;
-create policy "profiles_auth_select_own"
-on public.profiles
-for select
-to authenticated
-using (id = auth.uid());
-
-drop policy if exists "profiles_auth_insert_own" on public.profiles;
-create policy "profiles_auth_insert_own"
-on public.profiles
-for insert
-to authenticated
-with check (
-  id = auth.uid()
-  and public_code ~ '^[0-9]$'
-);
-
-drop policy if exists "profiles_auth_update_own" on public.profiles;
-create policy "profiles_auth_update_own"
-on public.profiles
-for update
-to authenticated
-using (id = auth.uid())
-with check (id = auth.uid());
-
-drop policy if exists "profiles_anon_select_active_code" on public.profiles;
-create policy "profiles_anon_select_active_code"
+drop policy if exists "profiles_anon_select" on public.profiles;
+create policy "profiles_anon_select"
 on public.profiles
 for select
 to anon
-using (public_code is not null and is_active = true);
+using (true);
+
+drop policy if exists "profiles_anon_insert" on public.profiles;
+create policy "profiles_anon_insert"
+on public.profiles
+for insert
+to anon
+with check (email is not null);
+
+drop policy if exists "profiles_anon_update" on public.profiles;
+create policy "profiles_anon_update"
+on public.profiles
+for update
+to anon
+using (true)
+with check (true);
 
 drop policy if exists "sessions_any_select" on public.sessions;
 create policy "sessions_any_select"
@@ -129,29 +90,21 @@ for select
 to anon, authenticated
 using (true);
 
-drop policy if exists "sessions_auth_insert_own" on public.sessions;
-create policy "sessions_auth_insert_own"
+drop policy if exists "sessions_anon_insert" on public.sessions;
+create policy "sessions_anon_insert"
 on public.sessions
 for insert
-to authenticated
-with check (performer_id = auth.uid());
+to anon
+with check (true);
 
-drop policy if exists "sessions_performer_update_own" on public.sessions;
-create policy "sessions_performer_update_own"
-on public.sessions
-for update
-to authenticated
-using (performer_id = auth.uid())
-with check (performer_id = auth.uid());
-
-drop policy if exists "sessions_anon_update_active_unsubmitted_30m" on public.sessions;
-create policy "sessions_anon_update_active_unsubmitted_30m"
+drop policy if exists "sessions_anon_update_active_unsubmitted_60m" on public.sessions;
+create policy "sessions_anon_update_active_unsubmitted_60m"
 on public.sessions
 for update
 to anon
 using (
   expired = false
-  and created_at > (now() - interval '30 minutes')
+  and created_at > (now() - interval '60 minutes')
   and exists (
     select 1
     from public.profiles p
@@ -162,7 +115,7 @@ using (
 with check (
   expired = false
   and submitted_at is not null
-  and created_at > (now() - interval '30 minutes')
+  and created_at > (now() - interval '60 minutes')
   and exists (
     select 1
     from public.profiles p
@@ -184,9 +137,3 @@ begin
   end if;
 end
 $$;
-
--- Seed examples (optional):
--- insert into public.purchase_codes (code) values
--- ('HAS-ABCD-1234'),
--- ('HAS-EFGH-0002'),
--- ('HAS-IJKL-0003');

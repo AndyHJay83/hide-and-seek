@@ -1063,17 +1063,19 @@
       if (shortest < -26) shortest += 52;
       return shortest;
     }
-    /** Single ASCII digit 0-9; trims whitespace; maps fullwidth digits ０-９ only. */
-    function normalizePublicCode(raw) {
-      const s = String(raw == null ? '' : raw).trim();
-      if (s.length !== 1) return '';
-      const cp = s.codePointAt(0);
-      const ascii = (cp >= 0xFF10 && cp <= 0xFF19)
-        ? String.fromCharCode(cp - 0xFF10 + 0x30)
-        : s;
-      return /^[0-9]$/.test(ascii) ? ascii : '';
+    const TEMP_CODE_TTL_MS = 60 * 60 * 1000;
+    const SESSION_TTL_MS = 60 * 60 * 1000;
+    const TEMP_CODE_REFRESH_MS = 30000;
+
+    function makeTempCode() {
+      return String(Math.floor(Math.random() * 10000)).padStart(4, '0');
     }
-    function isValidPublicCode(v) { return normalizePublicCode(v) !== ''; }
+    function isTempCodeExpired(iso) {
+      if (!iso) return true;
+      const ts = new Date(iso).getTime();
+      if (!Number.isFinite(ts)) return true;
+      return Date.now() >= ts;
+    }
     function phraseForDiff(diff) {
       const abs = Math.abs(diff);
       if (!PHRASES[abs]) {
@@ -1082,75 +1084,10 @@
       return abs + '. ' + PHRASES[abs];
     }
 
-    const OTP_RESEND_COOLDOWN_MS = 60000;
-    const OTP_RATE_LIMIT_COOLDOWN_MS = 120000;
-    const LOCAL_LOCK_EMAIL_KEY = 'has.lock_email';
-
-    function friendlyAuthError(err) {
-      const msg = err && err.message != null ? String(err.message) : '';
-      const status = err && err.status;
-      if (status === 429 || /rate limit|429|too many requests|email rate limit exceeded/i.test(msg)) {
-        return 'Too many sign-in emails were sent. Please wait a couple of minutes and try again. For launches with heavy traffic, enable custom SMTP and raise Auth rate limits in the Supabase dashboard.';
-      }
-      return msg || 'Something went wrong.';
-    }
-
-    function otpCooldownRemainingSec(key) {
-      const until = S.otpCooldownUntil[key] || 0;
-      return Math.max(0, Math.ceil((until - Date.now()) / 1000));
-    }
-
-    function clearOtpSendCooldownTimer() {
-      if (S.otpCooldownTimerId) {
-        clearInterval(S.otpCooldownTimerId);
-        S.otpCooldownTimerId = null;
-      }
-      S.otpCooldownBtnId = null;
-    }
-
-    /** Disables button and shows countdown; re-enables when finished. */
-    function startOtpSendCooldown(btn, sec) {
-      clearOtpSendCooldownTimer();
-      if (!btn || sec <= 0) return;
-      const id = btn.id;
-      if (!id) return;
-      if (!btn.dataset.label) btn.dataset.label = btn.textContent || 'Send Code';
-      let left = sec;
-      btn.disabled = true;
-      btn.textContent = 'Wait ' + left + 's';
-      S.otpCooldownBtnId = id;
-      S.otpCooldownTimerId = setInterval(() => {
-        left -= 1;
-        const b = el(id);
-        if (!b) {
-          clearOtpSendCooldownTimer();
-          return;
-        }
-        if (left <= 0) {
-          clearOtpSendCooldownTimer();
-          b.disabled = false;
-          b.textContent = b.dataset.label || 'Send Code';
-          return;
-        }
-        b.textContent = 'Wait ' + left + 's';
-      }, 1000);
-    }
-
-    function resumeOtpCooldownIfNeeded(btnId, key) {
-      const left = otpCooldownRemainingSec(key);
-      if (left <= 0) return;
-      const btn = el(btnId);
-      if (btn) startOtpSendCooldown(btn, left);
-    }
-
     const S = {
-      view: 'welcome', user: null, email: '',
-      regCode: '', regEmail: '', regPublicCode: '',
-      loginEmail: '', publicCode: '', isActive: true,
-      regPin: '', pinHash: '', pinSalt: '', pinUnlocked: false,
-      otpCooldownUntil: { login: 0, reg: 0 },
-      otpCooldownTimerId: null,
-      otpCooldownBtnId: null,
+      view: 'welcome', user: null, email: '', profileId: '',
+      loginEmail: '', tempCode: '', tempCodeExpiresAt: null, isActive: true,
+      codeRefreshTimer: null,
       performInputMethod: 'voice',
       shortDeal: false,
       staticStack: false,
@@ -1290,15 +1227,12 @@
       clearSessionWatchers();
       stopVoice();
       stopCamera();
-      clearOtpSendCooldownTimer();
       S.view = view;
       render();
     }
 
-    async function getSession() { const { data } = await sb.auth.getSession(); return data.session || null; }
-    function lockedEmail() { try { return localStorage.getItem(LOCAL_LOCK_EMAIL_KEY) || ''; } catch (_) { return ''; } }
-    function setLockedEmail(email) { try { localStorage.setItem(LOCAL_LOCK_EMAIL_KEY, (email || '').toLowerCase()); } catch (_) {} }
-    function clearLockedEmail() { try { localStorage.removeItem(LOCAL_LOCK_EMAIL_KEY); } catch (_) {} }
+    function storeLastEmail(email) { try { localStorage.setItem('has.last_login_email', (email || '').toLowerCase()); } catch (_) {} }
+    function readLastEmail() { try { return localStorage.getItem('has.last_login_email') || ''; } catch (_) { return ''; } }
     function bytesToHex(arr) { return Array.from(arr).map((b) => b.toString(16).padStart(2, '0')).join(''); }
     async function sha256Hex(str) {
       const enc = new TextEncoder().encode(str);
@@ -1314,60 +1248,19 @@
       // Simple deterministic hash for client-side PIN check.
       return sha256Hex('HAS-PIN:' + salt + ':' + pin);
     }
-    function isValidPin(pin) { return /^\d{6}$/.test(pin); }
     async function hasProfile(email) {
-      const { data, error } = await sb.from('profiles').select('id').eq('email', email.toLowerCase()).maybeSingle();
+      const { data, error } = await sb.from('profiles').select('id').eq('email', email.toLowerCase()).eq('is_active', true).maybeSingle();
       if (error) throw error; return !!data;
     }
-    async function hasPublicCode(code) {
-      const { data, error } = await sb.from('profiles').select('id').eq('public_code', code).maybeSingle();
-      if (error && error.code !== 'PGRST116') throw error;
-      return !!data;
-    }
-    async function validateCode(code) {
-      const c = code.toUpperCase().trim();
-      const { data, error } = await sb.from('purchase_codes').select('code,redeemed').eq('code', c).maybeSingle();
-      if (error) throw error; return data && data.redeemed === false;
-    }
-    async function redeemCode(code) {
-      const { error } = await sb.from('purchase_codes').update({
-        redeemed: true, redeemed_by: S.user.id, redeemed_at: new Date().toISOString()
-      }).eq('code', code.toUpperCase().trim()).eq('redeemed', false);
-      if (error) throw error;
-    }
-    async function createProfile() {
-      const publicCode = normalizePublicCode(S.regPublicCode);
-      if (!publicCode) throw new Error('Public code must be exactly one digit (0-9).');
-      const salt = randomHex(16);
-      const hash = await makePinHash(S.regPin, salt);
-      const payload = {
-        id: S.user.id,
-        email: (S.regEmail || '').toLowerCase(),
-        public_code: publicCode,
-        pin_hash: hash,
-        pin_salt: salt,
-        is_active: true,
-        short_deal: false,
-        static_stack: false,
-        stack_type: 'stebbins',
-        stebbins_start_suit: 2,
-        stebbins_start_value: 0,
-        custom_stack_json: null
-      };
-      const { error } = await sb.from('profiles').insert(payload);
-      if (error) throw error;
-      S.pinHash = hash;
-      S.pinSalt = salt;
-    }
     async function loadProfile() {
-      if (!S.user) return;
-      const { data, error } = await sb.from('profiles').select('email, public_code, pin_hash, pin_salt, is_active, short_deal, static_stack, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json').eq('id', S.user.id).maybeSingle();
+      if (!S.profileId) return;
+      const { data, error } = await sb.from('profiles').select('id, email, temp_code, temp_code_expires_at, is_active, short_deal, static_stack, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json').eq('id', S.profileId).maybeSingle();
       if (error) throw error;
       if (data) {
-        S.email = data.email || S.user.email || '';
-        S.publicCode = data.public_code || '';
-        S.pinHash = data.pin_hash || '';
-        S.pinSalt = data.pin_salt || '';
+        S.profileId = data.id || S.profileId;
+        S.email = data.email || '';
+        S.tempCode = data.temp_code || '';
+        S.tempCodeExpiresAt = data.temp_code_expires_at || null;
         S.isActive = data.is_active !== false;
         S.shortDeal = data.short_deal === true;
         S.staticStack = data.static_stack === true;
@@ -1377,54 +1270,66 @@
         S.customStackCodes = Array.isArray(data.custom_stack_json) ? data.custom_stack_json : [];
       }
     }
-    async function ensureBypassProfile() {
-      const existing = await sb.from('profiles').select('id, email, public_code, pin_hash, pin_salt, is_active, short_deal, static_stack, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json').eq('id', S.user.id).maybeSingle();
-      if (existing.error && existing.error.code !== 'PGRST116') throw existing.error;
-      if (existing.data) {
-        S.email = existing.data.email || S.user.email || 'guest@hideandseek.app';
-        S.publicCode = existing.data.public_code || '';
-        S.pinHash = existing.data.pin_hash || '';
-        S.pinSalt = existing.data.pin_salt || '';
-        S.isActive = existing.data.is_active !== false;
-        S.shortDeal = existing.data.short_deal === true;
-        S.staticStack = existing.data.static_stack === true;
-        S.stackType = STACK_TYPES.includes(existing.data.stack_type) ? existing.data.stack_type : 'stebbins';
-        S.stebbinsStartSuit = Number.isInteger(existing.data.stebbins_start_suit) ? existing.data.stebbins_start_suit : 2;
-        S.stebbinsStartValue = Number.isInteger(existing.data.stebbins_start_value) ? existing.data.stebbins_start_value : 0;
-        S.customStackCodes = Array.isArray(existing.data.custom_stack_json) ? existing.data.custom_stack_json : [];
-        return;
+    async function loginByEmail(email) {
+      const normalized = (email || '').trim().toLowerCase();
+      const { data, error } = await sb
+        .from('profiles')
+        .select('id, email, temp_code, temp_code_expires_at, is_active, short_deal, static_stack, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json')
+        .eq('email', normalized)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error('Email is not authorized.');
+      S.profileId = data.id;
+      S.email = data.email || normalized;
+      S.tempCode = data.temp_code || '';
+      S.tempCodeExpiresAt = data.temp_code_expires_at || null;
+      S.isActive = data.is_active !== false;
+      S.shortDeal = data.short_deal === true;
+      S.staticStack = data.static_stack === true;
+      S.stackType = STACK_TYPES.includes(data.stack_type) ? data.stack_type : 'stebbins';
+      S.stebbinsStartSuit = Number.isInteger(data.stebbins_start_suit) ? data.stebbins_start_suit : 2;
+      S.stebbinsStartValue = Number.isInteger(data.stebbins_start_value) ? data.stebbins_start_value : 0;
+      S.customStackCodes = Array.isArray(data.custom_stack_json) ? data.custom_stack_json : [];
+      storeLastEmail(S.email);
+    }
+    async function ensureActiveTempCode() {
+      if (!S.profileId) throw new Error('No profile loaded.');
+      if (S.tempCode && !isTempCodeExpired(S.tempCodeExpiresAt)) return S.tempCode;
+      for (let i = 0; i < 6; i++) {
+        const next = makeTempCode();
+        const expiresAt = new Date(Date.now() + TEMP_CODE_TTL_MS).toISOString();
+        const { error } = await sb.from('profiles').update({
+          temp_code: next,
+          temp_code_expires_at: expiresAt
+        }).eq('id', S.profileId);
+        if (!error) {
+          S.tempCode = next;
+          S.tempCodeExpiresAt = expiresAt;
+          return next;
+        }
+        if (error.code !== '23505') throw error;
       }
-      const code = String(Math.floor(Math.random() * 10));
-      const email = 'guest-' + (S.user.id || Date.now()) + '@hideandseek.app';
-      const ins = await sb.from('profiles').insert({
-        id: S.user.id,
-        email: email,
-        public_code: code,
-        pin_hash: '',
-        pin_salt: '',
-        is_active: true,
-        short_deal: false,
-        static_stack: false,
-        stack_type: 'stebbins',
-        stebbins_start_suit: 2,
-        stebbins_start_value: 0,
-        custom_stack_json: null
-      });
-      if (ins.error) throw ins.error;
-      S.email = email;
-      S.publicCode = code;
-      S.pinHash = '';
-      S.pinSalt = '';
-      S.isActive = true;
-      S.shortDeal = false;
-      S.staticStack = false;
-      S.stackType = 'stebbins';
-      S.stebbinsStartSuit = 2;
-      S.stebbinsStartValue = 0;
-      S.customStackCodes = [];
+      throw new Error('Could not allocate a temporary code. Please try again.');
+    }
+    function clearCodeRefreshTimer() {
+      if (S.codeRefreshTimer) {
+        clearInterval(S.codeRefreshTimer);
+        S.codeRefreshTimer = null;
+      }
+    }
+    function startCodeRefreshTimer() {
+      clearCodeRefreshTimer();
+      S.codeRefreshTimer = setInterval(async () => {
+        if (!S.profileId || S.view === 'welcome') return;
+        try {
+          await ensureActiveTempCode();
+          if (S.showAccompliceInline && el('home-inline-qr')) render();
+        } catch (_) {}
+      }, TEMP_CODE_REFRESH_MS);
     }
     async function setProfileActive(nextActive) {
-      const { error } = await sb.from('profiles').update({ is_active: nextActive }).eq('id', S.user.id);
+      const { error } = await sb.from('profiles').update({ is_active: nextActive }).eq('id', S.profileId);
       if (error) throw error;
       S.isActive = nextActive;
     }
@@ -1437,27 +1342,28 @@
         stebbins_start_value: S.stebbinsStartValue,
         custom_stack_json: (S.customStackCodes && S.customStackCodes.length) ? S.customStackCodes : null
       };
-      const { error } = await sb.from('profiles').update(payload).eq('id', S.user.id);
+      const { error } = await sb.from('profiles').update(payload).eq('id', S.profileId);
       if (error) throw error;
     }
     function sessionAge() { if (!S.session) return null; return Date.now() - new Date(S.session.created_at).getTime(); }
-    function sessionRemaining() { const age = sessionAge(); if (age == null) return 0; return Math.max(0, 30 * 60 * 1000 - age); }
+    function sessionRemaining() { const age = sessionAge(); if (age == null) return 0; return Math.max(0, SESSION_TTL_MS - age); }
     async function loadActiveSession() {
-      if (!S.user) return null;
-      const { data, error } = await sb.from('sessions').select('*').eq('performer_id', S.user.id).eq('expired', false).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (!S.profileId) return null;
+      const { data, error } = await sb.from('sessions').select('*').eq('performer_id', S.profileId).eq('expired', false).order('created_at', { ascending: false }).limit(1).maybeSingle();
       if (error) throw error;
       if (!data) return null;
-      if (Date.now() - new Date(data.created_at).getTime() > 30 * 60 * 1000) {
+      if (Date.now() - new Date(data.created_at).getTime() > SESSION_TTL_MS) {
         await sb.from('sessions').update({ expired: true }).eq('id', data.id);
         return null;
       }
       return data;
     }
     async function createNewSession() {
-      if (!S.user) throw new Error('Not authenticated.');
+      if (!S.profileId) throw new Error('Not logged in.');
       if (!S.isActive) throw new Error('Activate account to generate session links.');
-      await sb.from('sessions').update({ expired: true }).eq('performer_id', S.user.id).eq('expired', false);
-      const { data, error } = await sb.from('sessions').insert({ performer_id: S.user.id }).select('*').single();
+      await ensureActiveTempCode();
+      await sb.from('sessions').update({ expired: true }).eq('performer_id', S.profileId).eq('expired', false);
+      const { data, error } = await sb.from('sessions').insert({ performer_id: S.profileId }).select('*').single();
       if (error) throw error;
       S.session = data;
       S.performResult = null;
@@ -1529,95 +1435,24 @@
     }
 
     function viewWelcome() {
-      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2 class="center">Performance Transmission Tool</h2><p class="muted center">Install this as a PWA for best results.</p><div class="spacer"></div><button id="go-login" class="btn-primary btn-full">UNLOCK APP</button><button id="go-reg" class="btn-outline btn-full">SET UP ACCOUNT</button></div><div id="error-box" class="error"></div>';
+      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2 class="center">Performance Transmission Tool</h2><p class="muted center">Sign in with your approved email address.</p><div><label>Email</label><input id="login-email-input" type="email" placeholder="you@email.com" value="' + (S.loginEmail || readLastEmail() || '') + '"></div><button id="login-email-btn" class="btn-primary btn-full">LOG IN</button></div><div id="error-box" class="error"></div>';
     }
-    function bindWelcome() { el('go-login').onclick = () => go('login-pin'); el('go-reg').onclick = () => go('reg-code'); }
-
-    function viewLoginPin() {
-      const hint = lockedEmail() ? ('Unlocking: ' + lockedEmail()) : 'No device lock found. Set up account first.';
-      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Unlock</h2><p class="muted">' + hint + '</p><div><label>6-digit PIN</label><input id="login-pin-input" type="password" inputmode="numeric" maxlength="6" placeholder="••••••"></div><button id="unlock-pin-btn" class="btn-primary btn-full">Unlock</button><button id="pin-back-welcome" class="btn-outline btn-full">Back</button></div><div id="error-box" class="error"></div>';
-    }
-    function bindLoginPin() {
-      el('pin-back-welcome').onclick = () => go('welcome');
-      el('unlock-pin-btn').onclick = async () => {
+    function bindWelcome() {
+      el('login-email-btn').onclick = async () => {
         clearError();
-        const pin = (el('login-pin-input').value || '').trim();
-        if (!isValidPin(pin)) return showError('PIN must be exactly 6 digits.');
-        if (!S.pinHash || !S.pinSalt) return showError('PIN is not set on this device profile. Use setup first.');
-        const emailLock = lockedEmail();
-        if (!emailLock || (S.email && emailLock !== S.email.toLowerCase())) return showError('Device lock mismatch. Use setup to link this device.');
+        const btn = el('login-email-btn');
+        const email = (el('login-email-input').value || '').trim().toLowerCase();
+        if (!email) return showError('Enter your email.');
         try {
-          const hash = await makePinHash(pin, S.pinSalt);
-          if (hash !== S.pinHash) throw new Error('Incorrect PIN.');
-          S.pinUnlocked = true;
+          setBtn(btn, true, 'Checking...');
+          await loginByEmail(email);
+          await ensureActiveTempCode();
           S.session = await loadActiveSession();
+          S.loginEmail = email;
+          startCodeRefreshTimer();
           go('home');
         } catch (err) {
-          showError(err.message || 'Could not unlock.');
-        }
-      };
-    }
-
-    function viewRegCode() {
-      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Create Account</h2><p class="muted">Enter your purchase code.</p><div><label>Purchase Code</label><input id="reg-code-input" type="text" placeholder="HAS-XXXX-0001" value="' + (S.regCode || '') + '"></div><button id="check-code" class="btn-primary btn-full">Continue</button><button id="back-welcome-2" class="btn-outline btn-full">Back</button></div><div id="error-box" class="error"></div>';
-    }
-    function bindRegCode() {
-      el('back-welcome-2').onclick = () => go('welcome');
-      el('check-code').onclick = async () => {
-        clearError();
-        const btn = el('check-code');
-        const code = (el('reg-code-input').value || '').toUpperCase().trim();
-        if (!code) return showError('Enter a code.');
-        try {
-          setBtn(btn, true, 'Validating...');
-          if (!(await validateCode(code))) throw new Error('Code is invalid or already redeemed.');
-          S.regCode = code;
-          go('reg-email');
-        } catch (err) { showError(err.message || 'Code check failed.'); }
-        finally { setBtn(btn, false); }
-      };
-    }
-    function viewRegEmail() {
-      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Set Up Account</h2><p class="muted">Enter email, choose public code, then set your 6-digit PIN.</p><div><label>Email</label><input id="reg-email-input" type="email" placeholder="you@email.com" value="' + (S.regEmail || '') + '"></div><div><label>Public Code</label><input id="reg-public-code-input" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" placeholder="7" value="' + (S.regPublicCode || '') + '"></div><div><label>PIN</label><input id="reg-pin-input" type="password" inputmode="numeric" maxlength="6" placeholder="••••••"></div><div><label>Confirm PIN</label><input id="reg-pin-confirm-input" type="password" inputmode="numeric" maxlength="6" placeholder="••••••"></div><button id="create-account-btn" class="btn-primary btn-full">Create Account</button><button id="back-reg-code" class="btn-outline btn-full">Back</button></div><div id="error-box" class="error"></div>';
-    }
-    function bindRegEmail() {
-      el('back-reg-code').onclick = () => go('reg-code');
-      el('create-account-btn').onclick = async () => {
-        clearError();
-        const btn = el('create-account-btn');
-        if (!btn || btn.disabled) return;
-        const email = (el('reg-email-input').value || '').trim().toLowerCase();
-        const publicCode = normalizePublicCode(el('reg-public-code-input').value);
-        const pin = (el('reg-pin-input').value || '').trim();
-        const pinConfirm = (el('reg-pin-confirm-input').value || '').trim();
-        if (!email) return showError('Enter an email.');
-        if (!isValidPublicCode(publicCode)) return showError('Public code must be exactly 1 digit (0-9).');
-        if (!isValidPin(pin)) return showError('PIN must be exactly 6 digits.');
-        if (pin !== pinConfirm) return showError('PIN and confirmation must match.');
-        try {
-          setBtn(btn, true, 'Creating...');
-          if (await hasProfile(email)) {
-            showError('This email already has an account. Use login.');
-            setBtn(btn, false);
-            return;
-          }
-          if (await hasPublicCode(publicCode)) {
-            showError('That public code is already taken.');
-            setBtn(btn, false);
-            return;
-          }
-          S.regEmail = email;
-          S.regPublicCode = publicCode;
-          S.regPin = pin;
-          await createProfile();
-          await redeemCode(S.regCode);
-          await loadProfile();
-          setLockedEmail(S.regEmail);
-          S.pinUnlocked = true;
-          S.session = await loadActiveSession();
-          go('home');
-        } catch (err) {
-          showError(err.message || 'Could not create account.');
+          showError(err.message || 'Could not log in.');
         } finally {
           setBtn(btn, false);
         }
@@ -1625,10 +1460,19 @@
     }
 
     function viewHome() {
-      return '<div class="home-header"><div class="logo" style="margin:12px 0 0;text-align:center;font-size:30px;">HIDE & SEEK</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button id="copy-public-link" class="code-chip">' + (S.publicCode || 'N/A') + '</button><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div><button id="go-perform" class="action-tile solo-btn">PERFORM<span class="solo-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a4 4 0 0 0 4-4V7a4 4 0 1 0-8 0v4.5a4 4 0 0 0 4 4Zm7-4a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 1 0-2 0 7 7 0 0 0 6 6.92V21H9a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2h-2v-2.58A7 7 0 0 0 19 11.5Z"/></svg></span></button><div><label class="input-method-label">Input Method</label><select id="perform-input-method" class="input-method-select"><option value="voice"' + (S.performInputMethod === 'voice' ? ' selected' : '') + '>VOICE</option><option value="keypad"' + (S.performInputMethod === 'keypad' ? ' selected' : '') + '>KEYPAD</option></select></div><button id="go-accomplice" class="action-tile">ACCOMPLICE</button>' + buildInlineAccompliceBlock() + '<div class="active-toggle"><span class="active-label">ACTIVE</span><button id="toggle-active" class="switch ' + (S.isActive ? 'on' : 'off') + '" aria-label="toggle active"></button><div class="toggle-state ' + (S.isActive ? 'on' : '') + '">' + (S.isActive ? 'LIVE' : 'OFF') + '</div></div></div><div id="error-box" class="error"></div>';
+      return '<div class="home-header"><div class="logo" style="margin:12px 0 0;text-align:center;font-size:30px;">HIDE & SEEK</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button id="copy-public-link" class="code-chip">' + (S.tempCode || '----') + '</button><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div><button id="go-perform" class="action-tile solo-btn">PERFORM<span class="solo-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a4 4 0 0 0 4-4V7a4 4 0 1 0-8 0v4.5a4 4 0 0 0 4 4Zm7-4a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 1 0-2 0 7 7 0 0 0 6 6.92V21H9a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2h-2v-2.58A7 7 0 0 0 19 11.5Z"/></svg></span></button><div><label class="input-method-label">Input Method</label><select id="perform-input-method" class="input-method-select"><option value="voice"' + (S.performInputMethod === 'voice' ? ' selected' : '') + '>VOICE</option><option value="keypad"' + (S.performInputMethod === 'keypad' ? ' selected' : '') + '>KEYPAD</option></select></div><button id="go-accomplice" class="action-tile">ACCOMPLICE</button>' + buildInlineAccompliceBlock() + '<div class="active-toggle"><span class="active-label">ACTIVE</span><button id="toggle-active" class="switch ' + (S.isActive ? 'on' : 'off') + '" aria-label="toggle active"></button><div class="toggle-state ' + (S.isActive ? 'on' : '') + '">' + (S.isActive ? 'LIVE' : 'OFF') + '</div></div></div><div id="error-box" class="error"></div>';
     }
     function bindHome() {
       el('open-settings').onclick = () => go('settings');
+      (async () => {
+        try {
+          const prev = S.tempCode;
+          await ensureActiveTempCode();
+          if (S.tempCode !== prev) render();
+        } catch (err) {
+          showError(err.message || 'Could not refresh temporary code.');
+        }
+      })();
       el('go-perform').onclick = () => {
         if ((el('perform-input-method') ? el('perform-input-method').value : S.performInputMethod) === 'keypad') {
           S.performInputMethod = 'keypad';
@@ -1642,7 +1486,8 @@
       el('go-accomplice').onclick = async () => {
         clearError();
         try {
-          if (!S.publicCode) throw new Error('No public code set on your profile.');
+          await ensureActiveTempCode();
+          if (!S.tempCode) throw new Error('No temporary code available on your profile.');
           if (!S.isActive) throw new Error('Account is inactive. Turn ACTIVE on first.');
           if (!S.session || sessionRemaining() <= 0 || S.session.expired) {
             await createNewSession();
@@ -1662,7 +1507,8 @@
       initDelayPicker();
       el('copy-public-link').onclick = async () => {
         clearError();
-        if (!S.publicCode) return showError('No public link code available.');
+        await ensureActiveTempCode();
+        if (!S.tempCode) return showError('No temporary link code available.');
         if (!S.isActive) return showError('Turn account back on before creating an active session link.');
         try {
           if (!S.session || sessionRemaining() <= 0 || S.session.expired) {
@@ -1671,7 +1517,7 @@
         } catch (err) {
           return showError(err.message || 'Could not prepare active session.');
         }
-        const url = APP_URL.replace(/\/$/, '') + '/accomplice/' + S.publicCode;
+        const url = APP_URL.replace(/\/$/, '') + '/accomplice/' + S.tempCode;
         try {
           await navigator.clipboard.writeText(url);
           showToast('Copied');
@@ -1683,7 +1529,7 @@
         try {
           await setProfileActive(!S.isActive);
           if (!S.isActive && S.session) {
-            await sb.from('sessions').update({ expired: true }).eq('performer_id', S.user.id).eq('expired', false);
+            await sb.from('sessions').update({ expired: true }).eq('performer_id', S.profileId).eq('expired', false);
             S.session = null;
             S.showAccompliceInline = false;
           }
@@ -1692,7 +1538,7 @@
       };
 
       if (S.showAccompliceInline) {
-        const sessUrl = APP_URL.replace(/\/$/, '') + '/accomplice/' + S.publicCode;
+        const sessUrl = APP_URL.replace(/\/$/, '') + '/accomplice/' + S.tempCode;
         const q = el('home-inline-qr');
         if (q) {
           q.innerHTML = '';
@@ -1746,10 +1592,11 @@
     async function bindAccompliceSend() {
       clearError();
       try {
-        if (!S.publicCode) throw new Error('No public code set on your profile.');
+        await ensureActiveTempCode();
+        if (!S.tempCode) throw new Error('No temporary code set on your profile.');
         if (!S.isActive) throw new Error('Account is inactive. Activate account to use accomplice links.');
         if (!S.session || sessionRemaining() <= 0 || S.session.expired) await createNewSession();
-        const sessUrl = APP_URL.replace(/\/$/, '') + '/accomplice/' + S.publicCode;
+        const sessUrl = APP_URL.replace(/\/$/, '') + '/accomplice/' + S.tempCode;
         const q = el('qr-box'); q.innerHTML = '';
         new QRCode(q, { text: sessUrl, width: 200, height: 200, colorDark: '#000', colorLight: '#fff' });
         el('copy-link').onclick = async () => {
@@ -2311,7 +2158,7 @@
       ].map((it) => '<option value="' + it[0] + '"' + (S.stackType === it[0] ? ' selected' : '') + '>' + it[1] + '</option>').join('');
       const stebbinsCardBlock = '<div class="delay-wrap"><div class="delay-row"><span>Stebbins Position 1 Card</span><strong>' + cardLabel(S.stebbinsStartSuit, S.stebbinsStartValue) + '</strong></div><div class="btn-row"><select id="settings-stebbins-value" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + VAL_SYMS.map((v, i) => '<option value="' + i + '"' + (S.stebbinsStartValue === i ? ' selected' : '') + '>' + v + '</option>').join('') + '</select><select id="settings-stebbins-suit" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + SUIT_NAMES.map((n, i) => '<option value="' + i + '"' + (S.stebbinsStartSuit === i ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></div></div>';
       const customBlock = '<div class="delay-wrap"><div class="delay-row"><span>Custom Stack</span><strong id="settings-custom-count">' + String(S.customStackCodes.length) + '/52</strong></div><button id="settings-camera-scan" class="btn-outline btn-full">Camera Input</button><textarea id="settings-custom-stack" style="width:100%;min-height:90px;margin-top:10px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:14px;padding:10px;">' + (S.customStackCodes || []).join(' ') + '</textarea><div class="tiny">Paste or scan card codes in order (example: AC 4H 7S ...)</div></div>';
-      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.publicCode || 'N/A') + '</strong></p><div><label>Card Stack</label><select id="settings-stack-type" style="width:100%;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + stackOptions + '</select></div><div id="settings-stebbins-wrap"' + (S.stackType === 'stebbins' ? '' : ' style="display:none;"') + '>' + stebbinsCardBlock + '</div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div><div class="active-toggle"><span class="active-label">Short Deal</span><button id="settings-short-deal" class="switch ' + (S.shortDeal ? 'on' : 'off') + '" aria-label="toggle short deal"></button><div class="toggle-state ' + (S.shortDeal ? 'on' : '') + '">' + (S.shortDeal ? 'ON' : 'OFF') + '</div></div><div class="active-toggle"><span class="active-label">Static Stack</span><button id="settings-static-stack" class="switch ' + (S.staticStack ? 'on' : 'off') + '" aria-label="toggle static stack"></button><div class="toggle-state ' + (S.staticStack ? 'on' : '') + '">' + (S.staticStack ? 'ON' : 'OFF') + '</div></div><div><label>Start Trigger</label><input id="settings-start-trigger" type="text" value="' + (S.voice.startTrigger || 'okay') + '"></div><div><label>End Trigger</label><input id="settings-end-trigger" type="text" value="' + (S.voice.endTrigger || 'amazing') + '"></div><div class="delay-wrap"><div class="delay-row"><span>Microphone Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div></div><button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
+      return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Temp Code: <strong>' + (S.tempCode || '----') + '</strong></p><div><label>Card Stack</label><select id="settings-stack-type" style="width:100%;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + stackOptions + '</select></div><div id="settings-stebbins-wrap"' + (S.stackType === 'stebbins' ? '' : ' style="display:none;"') + '>' + stebbinsCardBlock + '</div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div><div class="active-toggle"><span class="active-label">Short Deal</span><button id="settings-short-deal" class="switch ' + (S.shortDeal ? 'on' : 'off') + '" aria-label="toggle short deal"></button><div class="toggle-state ' + (S.shortDeal ? 'on' : '') + '">' + (S.shortDeal ? 'ON' : 'OFF') + '</div></div><div class="active-toggle"><span class="active-label">Static Stack</span><button id="settings-static-stack" class="switch ' + (S.staticStack ? 'on' : 'off') + '" aria-label="toggle static stack"></button><div class="toggle-state ' + (S.staticStack ? 'on' : '') + '">' + (S.staticStack ? 'ON' : 'OFF') + '</div></div><div><label>Start Trigger</label><input id="settings-start-trigger" type="text" value="' + (S.voice.startTrigger || 'okay') + '"></div><div><label>End Trigger</label><input id="settings-end-trigger" type="text" value="' + (S.voice.endTrigger || 'amazing') + '"></div><div class="delay-wrap"><div class="delay-row"><span>Microphone Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div></div><button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
     }
     function bindSettings() {
       el('settings-back').onclick = () => {
@@ -2391,22 +2238,24 @@
       }
       initDelayPicker();
       el('logout-btn').onclick = async () => {
-        const ok = window.confirm('Lock app now?');
+        const ok = window.confirm('Log out now?');
         if (!ok) return;
         clearSessionWatchers();
+        clearCodeRefreshTimer();
         stopVoice();
-        S.pinUnlocked = false;
+        S.profileId = '';
+        S.email = '';
+        S.tempCode = '';
+        S.tempCodeExpiresAt = null;
         S.session = null;
-        go('login-pin');
+        S.showAccompliceInline = false;
+        go('welcome');
       };
     }
 
     async function render() {
       const app = el('app'); if (!app) return;
       if (S.view === 'welcome') { app.innerHTML = viewWelcome(); bindWelcome(); return; }
-      if (S.view === 'login-pin') { app.innerHTML = viewLoginPin(); bindLoginPin(); return; }
-      if (S.view === 'reg-code') { app.innerHTML = viewRegCode(); bindRegCode(); return; }
-      if (S.view === 'reg-email') { app.innerHTML = viewRegEmail(); bindRegEmail(); return; }
       if (S.view === 'home') { app.innerHTML = viewHome(); bindHome(); return; }
       if (S.view === 'accomplice-send') { app.innerHTML = viewAccompliceSend(); await bindAccompliceSend(); return; }
       if (S.view === 'perform') { app.innerHTML = viewPerform(); bindPerform(); return; }
@@ -2418,31 +2267,8 @@
     }
     async function init() {
       if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
-      let session = await getSession();
-      if (!session || !session.user) {
-        const anon = await sb.auth.signInAnonymously();
-        if (anon.error) {
-          S.view = 'welcome';
-          render();
-          showError('Anonymous auth failed. Enable Anonymous provider in Supabase Auth settings.');
-          return;
-        }
-        session = anon.data.session || null;
-      }
-      if (session && session.user) {
-        S.user = session.user;
-        try { await loadProfile(); } catch (_) {}
-        const lock = lockedEmail();
-        if (S.pinHash && S.pinSalt && lock && S.email && lock === S.email.toLowerCase()) {
-          S.view = 'login-pin';
-        } else if (S.email) {
-          S.view = 'reg-code';
-        } else {
-          S.view = 'welcome';
-        }
-      } else {
-        S.view = 'welcome';
-      }
+      S.loginEmail = readLastEmail();
+      S.view = 'welcome';
       render();
     }
     document.addEventListener('DOMContentLoaded', init);

@@ -4,20 +4,14 @@
 
 1. Create a new Supabase project.
 2. Open SQL Editor and run `supabase-setup.sql`.
-3. Add your purchase codes:
-   - Either run manual inserts in SQL, or use the commented seed block in `supabase-setup.sql`.
-   - Store and compare all codes in uppercase format (for example `HAS-ABCD-0001`).
-4. In Supabase Authentication:
-   - Enable Anonymous sign-in (used for persistent app identity).
-   - Email OTP is no longer required by default app flow.
-5. Configure SMTP for reliable delivery:
-   - Recommended: Resend free tier SMTP.
-   - In Supabase Auth > SMTP Settings, add your Resend SMTP host/user/pass and sender email.
-6. Confirm realtime is active for `sessions`:
+3. Add allowed users manually to `public.profiles`:
+   - Required minimum fields: `email` and `is_active`.
+   - `id` can be omitted (defaults to generated UUID).
+4. Confirm realtime is active for `sessions`:
    - `supabase-setup.sql` includes `alter publication supabase_realtime add table public.sessions`.
-7. New profile fields:
-   - `public_code` (unique single-digit code `0-9`)
-   - `pin_hash` and `pin_salt` (PIN unlock data)
+5. Profile fields used by runtime:
+   - `email` (allowlist login key)
+   - `temp_code` + `temp_code_expires_at` (rotating 4-digit accomplice code)
    - `is_active` (performer can activate/deactivate live receiving)
 
 ## 2) GitHub Pages Setup
@@ -70,19 +64,18 @@ Notes:
 
 ### Performer Flow (`index.html`)
 
-1. Register:
-   - Enter purchase code
-   - Enter email
-   - Choose permanent public code (example: `7`)
-   - Set 6-digit PIN
-   - App creates profile then redeems code
-2. Login:
-   - Enter 6-digit PIN only on the same device
-3. Home:
+1. Login:
+   - Enter email.
+   - App checks `profiles.email`; no match means login fails.
+2. Home:
    - `PERFORM`: open waiting/result performance screen
-   - `ACCOMPLICE`: generate QR + share reusable code URL (`/accomplice/PUBLICCODE`)
+   - `ACCOMPLICE`: generate QR + share code URL (`/accomplice/1234`)
    - `VOICE MODE`: capture spoken cards and calculate result locally
    - Activate/Deactivate toggle to control whether accomplice transmissions are accepted
+3. Temp code behavior:
+   - 4-digit code is generated per performer.
+   - Code rotates every 60 minutes.
+   - Rotation does not end an already-running performance session.
 4. Perform mode:
    - Waits for accomplice submission
    - Updates via Supabase Realtime + 5s polling fallback
@@ -91,19 +84,20 @@ Notes:
 ### Accomplice Flow (`accomplice.html`)
 
 1. Opens URL `accomplice.html?s=<session-uuid>`
-   - Or reusable URL `/accomplice/<PUBLICCODE>`
+   - Or code URL `/accomplice/<4-digit-temp-code>`
 2. Validates session:
    - Exists
    - Not expired flag
    - Not already submitted
-   - Not older than 30 minutes
+   - Not older than 60 minutes
 3. Selects SEEKER card first, then HIDER card
 4. Confirms and transmits once
 5. Sees success screen
 
 ## 6) Timing and Session Rules
 
-- Session lifetime is 30 minutes from `created_at`.
+- Session lifetime is 60 minutes from `created_at`.
+- Temporary code lifetime is 60 minutes from `temp_code_expires_at`.
 - Session can only be submitted once (`submitted_at` becomes non-null).
 - Performer can generate new session at any time; previous active sessions are marked expired.
 - Perform view shows live countdown and exits when session times out.
@@ -111,18 +105,15 @@ Notes:
 
 ## 7) Troubleshooting
 
-- OTP not arriving:
-  - Check Supabase auth email settings.
-  - Verify SMTP credentials and sender domain in Resend.
-  - Check spam/junk folder.
-- "No profile found" on login:
-  - User has not completed registration profile creation.
+- "Email is not authorized":
+  - Ensure an active row exists in `public.profiles` for that email.
+- Temp code not appearing:
+  - Check `profiles_temp_code_key` unique index exists.
+  - Check `temp_code_expires_at` column exists and is writable.
 - Accomplice shows invalid/expired:
-  - Confirm URL contains `?s=<uuid>` or `?c=<PUBLICCODE>`.
-  - Confirm session still within 30 minutes and not marked expired.
-- Public code conflict on registration:
-  - Code must be exactly 1 digit (`0-9`).
-  - Code must be unique across all users.
+  - Confirm URL contains `?s=<uuid>` or `/accomplice/<4-digit-code>`.
+  - Confirm session still within 60 minutes and not marked expired.
+  - Confirm performer is active and code has not expired.
 - Voice mode not working:
   - Use Chrome-based browsers for best `SpeechRecognition` support.
   - Allow microphone permissions.

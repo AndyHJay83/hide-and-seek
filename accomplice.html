@@ -175,6 +175,7 @@
   <script src="./config.js"></script>
   <script>
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const SESSION_TTL_MS = 60 * 60 * 1000;
     const SUITS = [
       { sym: '♠', name: 'Spades', idx: 0 },
       { sym: '♥', name: 'Hearts', idx: 1 },
@@ -367,7 +368,7 @@
       const params = new URLSearchParams(window.location.search);
       const sessionId = params.get('s');
       const code = (params.get('c') || '').toUpperCase().trim();
-      const pathCodeMatch = window.location.pathname.match(/\/accomplice\/([A-Za-z0-9]{1,})\/?$/);
+      const pathCodeMatch = window.location.pathname.match(/\/accomplice\/([0-9]{4})\/?$/);
       const pathCode = pathCodeMatch ? pathCodeMatch[1].toUpperCase().trim() : '';
       const resolvedCode = code || pathCode;
 
@@ -378,10 +379,17 @@
           if (r.error) throw r.error;
           data = r.data;
         } else if (resolvedCode) {
-          const pr = await sb.from('profiles').select('id, is_active').eq('public_code', resolvedCode).maybeSingle();
+          const pr = await sb
+            .from('profiles')
+            .select('id, is_active, temp_code_expires_at')
+            .eq('temp_code', resolvedCode)
+            .maybeSingle();
           if (pr.error) throw pr.error;
           if (!pr.data) return screenError('Invalid Link', 'Unknown performer code.');
           if (!pr.data.is_active) return screenError('Performer Inactive', 'This performer is not currently accepting transmissions.');
+          if (!pr.data.temp_code_expires_at || Date.now() >= new Date(pr.data.temp_code_expires_at).getTime()) {
+            return screenError('Code Expired', 'This code has expired. Ask for a fresh one.');
+          }
           S.performerId = pr.data.id;
           const sr = await sb
             .from('sessions')
@@ -401,7 +409,7 @@
         S.sessionId = data.id;
         if (data.expired) return screenExpired();
         const age = Date.now() - new Date(data.created_at).getTime();
-        if (age > 30 * 60 * 1000) return screenExpired();
+        if (age > SESSION_TTL_MS) return screenExpired();
         renderStep();
       } catch (err) {
         screenError('Error', err.message || 'Could not load session.');
