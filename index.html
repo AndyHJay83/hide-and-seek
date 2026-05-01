@@ -1094,6 +1094,7 @@
     const S = {
       view: 'welcome', user: null, email: '', profileId: '',
       loginEmail: '', tempCode: '', tempCodeExpiresAt: null, isActive: true,
+      deferredInstallPrompt: null,
       codeRefreshTimer: null,
       performInputMethod: 'voice',
       shortDeal: false,
@@ -1240,6 +1241,16 @@
 
     function storeLastEmail(email) { try { localStorage.setItem('has.last_login_email', (email || '').toLowerCase()); } catch (_) {} }
     function readLastEmail() { try { return localStorage.getItem('has.last_login_email') || ''; } catch (_) { return ''; } }
+    function isStandaloneMode() {
+      return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    }
+    function isIOSBrowser() {
+      const ua = navigator.userAgent || '';
+      return /iPhone|iPad|iPod/i.test(ua);
+    }
+    function requiresInstallGate() {
+      return !isStandaloneMode();
+    }
     function bytesToHex(arr) { return Array.from(arr).map((b) => b.toString(16).padStart(2, '0')).join(''); }
     async function sha256Hex(str) {
       const enc = new TextEncoder().encode(str);
@@ -1442,9 +1453,37 @@
     }
 
     function viewWelcome() {
+      if (requiresInstallGate()) {
+        const action = S.deferredInstallPrompt
+          ? '<button id="install-now-btn" class="btn-primary btn-full">INSTALL APP</button>'
+          : '';
+        const instructions = isIOSBrowser()
+          ? '<ol class="muted" style="margin:0 0 0 20px;padding:0;display:flex;flex-direction:column;gap:8px;"><li>Tap <strong>Share</strong> in Safari.</li><li>Choose <strong>Add to Home Screen</strong>.</li><li>Open HIDE & SEEK from your home screen icon.</li></ol>'
+          : '<ol class="muted" style="margin:0 0 0 20px;padding:0;display:flex;flex-direction:column;gap:8px;"><li>Open browser menu.</li><li>Tap <strong>Install app</strong> or <strong>Add to Home screen</strong>.</li><li>Open HIDE & SEEK from your home screen icon.</li></ol>';
+        return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2 class="center">Install Required</h2><p class="muted center">This tool only works as an installed app.</p>' + instructions + action + '</div><div id="error-box" class="error"></div>';
+      }
       return '<div class="logo">HIDE & SEEK</div><div class="panel stack"><h2 class="center">Performance Transmission Tool</h2><p class="muted center">Sign in with your approved email address.</p><div><label>Email</label><input id="login-email-input" type="email" placeholder="you@email.com" value="' + (S.loginEmail || readLastEmail() || '') + '"></div><button id="login-email-btn" class="btn-primary btn-full">LOG IN</button></div><div id="error-box" class="error"></div>';
     }
     function bindWelcome() {
+      if (requiresInstallGate()) {
+        const installBtn = el('install-now-btn');
+        if (installBtn) {
+          installBtn.onclick = async () => {
+            try {
+              setBtn(installBtn, true, 'Opening...');
+              await S.deferredInstallPrompt.prompt();
+              await S.deferredInstallPrompt.userChoice;
+              S.deferredInstallPrompt = null;
+              render();
+            } catch (_) {
+              showError('Install prompt unavailable. Use your browser menu to install.');
+            } finally {
+              setBtn(installBtn, false);
+            }
+          };
+        }
+        return;
+      }
       el('login-email-btn').onclick = async () => {
         clearError();
         const btn = el('login-email-btn');
@@ -2274,6 +2313,15 @@
     }
     async function init() {
       if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+      window.addEventListener('beforeinstallprompt', (event) => {
+        event.preventDefault();
+        S.deferredInstallPrompt = event;
+        if (S.view === 'welcome') render();
+      });
+      window.addEventListener('appinstalled', () => {
+        S.deferredInstallPrompt = null;
+        if (S.view === 'welcome') render();
+      });
       S.loginEmail = readLastEmail();
       S.view = 'welcome';
       render();
