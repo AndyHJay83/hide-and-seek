@@ -97,6 +97,15 @@ for insert
 to anon
 with check (true);
 
+-- Performer app (anon) expires old sessions before inserting a new one.
+drop policy if exists "sessions_anon_performer_update" on public.sessions;
+create policy "sessions_anon_performer_update"
+on public.sessions
+for update
+to anon
+using (true)
+with check (true);
+
 drop policy if exists "sessions_anon_update_active_unsubmitted_60m" on public.sessions;
 create policy "sessions_anon_update_active_unsubmitted_60m"
 on public.sessions

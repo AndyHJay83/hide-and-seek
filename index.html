@@ -219,15 +219,26 @@
       text-transform: uppercase;
       letter-spacing: 0.08em;
     }
+    .input-method-wrap {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
     .input-method-select {
-      width: 30%;
-      min-width: 132px;
-      margin: 0 auto;
+      width: auto;
+      min-width: 176px;
+      max-width: 280px;
+      margin: 0;
       display: block;
       min-height: 40px;
       height: 40px;
+      line-height: 40px;
       border-radius: 999px;
-      background: #0a0a0a;
+      background-color: #0a0a0a;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23b8d4f0' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.75rem center;
+      background-size: 11px;
       color: #fff;
       border: 1px solid rgba(151, 204, 255, 0.72);
       box-shadow: 0 0 0 1px rgba(127, 188, 255, 0.16), 0 0 18px rgba(122, 190, 255, 0.3);
@@ -236,9 +247,12 @@
       letter-spacing: 0.08em;
       text-align: center;
       text-align-last: center;
-      padding: 6px 14px;
+      padding: 0 2.25rem 0 2.25rem;
       outline: none;
       text-transform: uppercase;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
     }
     .input-method-select:focus {
       border-color: rgba(171, 219, 255, 0.95);
@@ -558,6 +572,13 @@
       color: var(--muted);
       font-size: 13px;
       max-width: 320px;
+    }
+    .solo-triggers-hint {
+      font-size: 12px;
+      line-height: 1.4;
+      color: rgba(255, 255, 255, 0.42);
+      max-width: 300px;
+      margin-top: 2px;
     }
     .card-chip-wrap {
       display: flex;
@@ -1225,6 +1246,9 @@
     }
     function mapSetupError(err) {
       const msg = err && err.message ? String(err.message) : '';
+      if (/row-level security policy.*\bsessions\b/i.test(msg)) {
+        return 'Sessions are blocked by database rules. In Supabase → SQL Editor, run fix-sessions-rls-for-anon.sql from this app’s repo (same project as your Supabase URL in config.js), then try again.';
+      }
       if (/column .*temp_code.* does not exist/i.test(msg)) {
         return 'Database not migrated yet: run supabase-setup.sql (or fix-temp-code-columns.sql) in Supabase SQL Editor.';
       }
@@ -1261,6 +1285,33 @@
         rotated[code] = ((pos - topPos + 52) % 52) + 1;
       });
       return rotated;
+    }
+    function defaultPositionOneCodeForStack(stackType, customCodes) {
+      if (stackType === 'stebbins') return '';
+      if (stackType === 'ndo') return cardCodeFromIdx(0, 0);
+      if (stackType === 'custom') {
+        const c = (customCodes && customCodes.length) ? customCodes[0] : '';
+        return normalizeCardCode(c) || cardCodeFromIdx(0, 0);
+      }
+      const arr = STACK_CODES[stackType];
+      if (arr && arr.length) {
+        const n = normalizeCardCode(arr[0]);
+        if (n) return n;
+      }
+      return cardCodeFromIdx(0, 0);
+    }
+    function topCardIndicesForSettings(stackType, topCode, customCodes) {
+      const def = defaultPositionOneCodeForStack(stackType, customCodes);
+      const use = normalizeCardCode(topCode || '') || def;
+      const n = normalizeCardCode(use);
+      if (!n) return { suit: 0, value: 0 };
+      const suit = idxSuitFromLetter(n.slice(-1));
+      const valSym = n.slice(0, -1);
+      const value = VAL_SYMS.indexOf(valSym);
+      return {
+        suit: suit >= 0 ? suit : 0,
+        value: value >= 0 ? value : 0
+      };
     }
     function phraseForDiff(diff) {
       const abs = Math.abs(diff);
@@ -1560,9 +1611,10 @@
       if (!S.profileId) throw new Error('Not logged in.');
       if (!S.isActive) throw new Error('Activate account to generate session links.');
       await ensureActiveTempCode();
-      await sb.from('sessions').update({ expired: true }).eq('performer_id', S.profileId).eq('expired', false);
+      const { error: expireErr } = await sb.from('sessions').update({ expired: true }).eq('performer_id', S.profileId).eq('expired', false);
+      if (expireErr) throw new Error(mapSetupError(expireErr));
       const { data, error } = await sb.from('sessions').insert({ performer_id: S.profileId }).select('*').single();
-      if (error) throw error;
+      if (error) throw new Error(mapSetupError(error));
       S.session = data;
       S.performResult = null;
       return data;
@@ -1686,7 +1738,7 @@
     }
 
     function viewHome() {
-      return '<div class="home-header"><div class="logo logo-home">' + logoMarkup(true) + '</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button id="copy-public-link" class="code-chip">' + (S.tempCode || '----') + '</button><div id="temp-code-count" class="temp-code-count">' + formatCountdown(tempCodeRemaining()) + '</div><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div><button id="go-perform" class="action-tile solo-btn">PERFORM</button><div><select id="perform-input-method" class="input-method-select"><option value="voice"' + (S.performInputMethod === 'voice' ? ' selected' : '') + '>VOICE</option><option value="keypad"' + (S.performInputMethod === 'keypad' ? ' selected' : '') + '>KEYPAD</option></select></div><button id="go-accomplice" class="action-tile">ACCOMPLICE</button>' + buildInlineAccompliceBlock() + '<div class="active-toggle"><span class="active-label">ACTIVE</span><button id="toggle-active" class="switch ' + (S.isActive ? 'on' : 'off') + '" aria-label="toggle active"></button><div class="toggle-state ' + (S.isActive ? 'on' : '') + '">' + (S.isActive ? 'LIVE' : 'OFF') + '</div></div></div><div id="error-box" class="error"></div>';
+      return '<div class="home-header"><div class="logo logo-home">' + logoMarkup(true) + '</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button id="copy-public-link" class="code-chip">' + (S.tempCode || '----') + '</button><div id="temp-code-count" class="temp-code-count">' + formatCountdown(tempCodeRemaining()) + '</div><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div><button id="go-perform" class="action-tile solo-btn">PERFORM</button><div class="input-method-wrap"><select id="perform-input-method" class="input-method-select"><option value="voice"' + (S.performInputMethod === 'voice' ? ' selected' : '') + '>VOICE</option><option value="keypad"' + (S.performInputMethod === 'keypad' ? ' selected' : '') + '>KEYPAD</option></select></div><button id="go-accomplice" class="action-tile">ACCOMPLICE</button>' + buildInlineAccompliceBlock() + '<div class="active-toggle"><span class="active-label">ACTIVE</span><button id="toggle-active" class="switch ' + (S.isActive ? 'on' : 'off') + '" aria-label="toggle active"></button><div class="toggle-state ' + (S.isActive ? 'on' : '') + '">' + (S.isActive ? 'LIVE' : 'OFF') + '</div></div></div><div id="error-box" class="error"></div>';
     }
     function bindHome() {
       el('open-settings').onclick = () => go('settings');
@@ -1924,7 +1976,7 @@
       return '<div style="margin-top:6px;"><div class="' + phraseClass + '" style="font-size:clamp(22px,6vw,44px);text-align:center;">' + phrase + '</div><div class="perform-sub" style="text-align:center;">' + cardLabel(result.parsed.seeker.suit, result.parsed.seeker.value) + '</div><div class="perform-sub" style="text-align:center;">' + cardLabel(result.parsed.hider.suit, result.parsed.hider.value) + '</div></div>';
     }
     function viewSoloPerform() {
-      return '<div class="solo-screen"><button id="solo-back" class="perform-exit">EXIT</button><div id="solo-main"><div class="perform-awaiting">SOLO READY</div></div><div id="solo-status" class="solo-hint"></div></div><div id="error-box" class="error"></div>';
+      return '<div class="solo-screen"><button id="solo-back" class="perform-exit">EXIT</button><div id="solo-main"><div class="perform-awaiting">SOLO READY</div></div><div id="solo-status" class="solo-hint"></div><div id="solo-triggers-hint" class="solo-triggers-hint"></div></div><div id="error-box" class="error"></div>';
     }
     function viewSelfKeypad() {
       return '<div class="logo">' + logoMarkup() + '</div><div id="self-keypad-root" class="panel stack"></div><div id="error-box" class="error"></div>';
@@ -2297,13 +2349,19 @@
       rec.onend = () => {
         const wasListening = S.voice.listening;
         S.voice.listening = false;
-        if (wasListening && S.soloDelaySec === 0) setText('solo-status', 'Double tap lower half to start/stop');
+        if (wasListening && S.soloDelaySec === 0) setText('solo-status', 'Double tap lower half to start/stop microphone');
       };
       rec.start();
     }
     function bindSoloPerform() {
       const back = el('solo-back');
       if (back) back.onclick = () => go('home');
+      const trigHint = el('solo-triggers-hint');
+      if (trigHint) {
+        const st = (S.voice.startTrigger || 'okay').trim();
+        const et = (S.voice.endTrigger || 'amazing').trim();
+        trigHint.textContent = 'Start: "' + st + '" · End: "' + et + '"';
+      }
       const screen = document.querySelector('.solo-screen');
       if (screen) {
         screen.ondblclick = (e) => {
@@ -2332,7 +2390,7 @@
           }
         }, 1000);
       } else {
-        setText('solo-status', 'Double tap lower half to start/stop');
+        setText('solo-status', 'Double tap lower half to start/stop microphone');
       }
     }
     function viewVoice() {
@@ -2404,7 +2462,9 @@
       ].map((it) => '<option value="' + it[0] + '"' + (S.stackType === it[0] ? ' selected' : '') + '>' + it[1] + '</option>').join('');
       const stebbinsCardBlock = '<div class="delay-wrap"><div class="delay-row"><span>Stebbins Position 1 Card</span><strong>' + cardLabel(S.stebbinsStartSuit, S.stebbinsStartValue) + '</strong></div><div class="btn-row"><select id="settings-stebbins-value" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + VAL_SYMS.map((v, i) => '<option value="' + i + '"' + (S.stebbinsStartValue === i ? ' selected' : '') + '>' + v + '</option>').join('') + '</select><select id="settings-stebbins-suit" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + SUIT_NAMES.map((n, i) => '<option value="' + i + '"' + (S.stebbinsStartSuit === i ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></div></div>';
       const customBlock = '<div class="delay-wrap"><div class="delay-row"><span>Custom Stack</span><strong id="settings-custom-count">' + String(S.customStackCodes.length) + '/52</strong></div><textarea id="settings-custom-stack" style="width:100%;min-height:90px;margin-top:10px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:14px;padding:10px;">' + (S.customStackCodes || []).join(' ') + '</textarea><div class="tiny">Paste card codes in order (example: AC 4H 7S ...)</div></div>';
-      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Temp Code: <strong>' + (S.tempCode || '----') + '</strong></p><div><label>Card Stack</label><select id="settings-stack-type" style="width:100%;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + stackOptions + '</select></div><div id="settings-stebbins-wrap"' + (S.stackType === 'stebbins' ? '' : ' style="display:none;"') + '>' + stebbinsCardBlock + '</div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div><div><label>Top Card (Position 1, any stack)</label><input id="settings-top-card" type="text" maxlength="3" placeholder="e.g. 7H" value="' + (S.topCardCode || '') + '"><div class="tiny">Leave blank to use each stack default top card.</div></div><div class="active-toggle"><span class="active-label">Short Deal</span><button id="settings-short-deal" class="switch ' + (S.shortDeal ? 'on' : 'off') + '" aria-label="toggle short deal"></button><div class="toggle-state ' + (S.shortDeal ? 'on' : '') + '">' + (S.shortDeal ? 'ON' : 'OFF') + '</div></div><div><label>Start Trigger</label><input id="settings-start-trigger" type="text" value="' + (S.voice.startTrigger || 'okay') + '"></div><div><label>End Trigger</label><input id="settings-end-trigger" type="text" value="' + (S.voice.endTrigger || 'amazing') + '"></div><div class="delay-wrap"><div class="delay-row"><span>Microphone Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div></div><button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
+      const p1 = topCardIndicesForSettings(S.stackType, S.topCardCode, S.customStackCodes);
+      const position1Block = '<div id="settings-position1-wrap"' + (S.stackType === 'stebbins' ? ' style="display:none;"' : '') + '><div class="delay-wrap"><div class="delay-row"><span>Position 1 Card</span><strong>' + cardLabel(p1.suit, p1.value) + '</strong></div><div class="btn-row"><select id="settings-pos1-value" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + VAL_SYMS.map((v, i) => '<option value="' + i + '"' + (p1.value === i ? ' selected' : '') + '>' + v + '</option>').join('') + '</select><select id="settings-pos1-suit" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + SUIT_NAMES.map((n, i) => '<option value="' + i + '"' + (p1.suit === i ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></div><div class="tiny">Same controls as Stebbins. Matches the stack default when unchanged.</div></div></div>';
+      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Temp Code: <strong>' + (S.tempCode || '----') + '</strong></p><div><label>Card Stack</label><select id="settings-stack-type" style="width:100%;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + stackOptions + '</select></div><div id="settings-stebbins-wrap"' + (S.stackType === 'stebbins' ? '' : ' style="display:none;"') + '>' + stebbinsCardBlock + '</div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div>' + position1Block + '<div class="active-toggle"><span class="active-label">Short Deal</span><button id="settings-short-deal" class="switch ' + (S.shortDeal ? 'on' : 'off') + '" aria-label="toggle short deal"></button><div class="toggle-state ' + (S.shortDeal ? 'on' : '') + '">' + (S.shortDeal ? 'ON' : 'OFF') + '</div></div><div><label>Start Trigger</label><input id="settings-start-trigger" type="text" value="' + (S.voice.startTrigger || 'okay') + '"></div><div><label>End Trigger</label><input id="settings-end-trigger" type="text" value="' + (S.voice.endTrigger || 'amazing') + '"></div><div class="delay-wrap"><div class="delay-row"><span>Microphone Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div></div><button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
     }
     function bindSettings() {
       el('settings-back').onclick = () => {
@@ -2414,7 +2474,6 @@
         const shortDeal = !!(el('settings-short-deal') && el('settings-short-deal').classList.contains('on'));
         const stebbinsSuit = Number(el('settings-stebbins-suit') ? el('settings-stebbins-suit').value : S.stebbinsStartSuit);
         const stebbinsValue = Number(el('settings-stebbins-value') ? el('settings-stebbins-value').value : S.stebbinsStartValue);
-        const topCardCode = normalizeCardCode((el('settings-top-card') ? el('settings-top-card').value : '').trim()) || '';
         if (!st || !et) {
           showError('Start and end triggers are required.');
           return;
@@ -2423,14 +2482,6 @@
           showError('Invalid stack selection.');
           return;
         }
-        S.voice.startTrigger = st;
-        S.voice.endTrigger = et;
-        S.stackType = stackType;
-        S.shortDeal = shortDeal;
-        S.stebbinsStartSuit = Number.isInteger(stebbinsSuit) ? stebbinsSuit : 2;
-        S.stebbinsStartValue = Number.isInteger(stebbinsValue) ? stebbinsValue : 0;
-        S.topCardCode = topCardCode;
-        writeTopCardCode(topCardCode);
         if (stackType === 'custom') {
           const rawCodes = (el('settings-custom-stack') ? el('settings-custom-stack').value : '').trim();
           const parsed = parseCardCodesFromText(rawCodes);
@@ -2441,6 +2492,26 @@
           }
           S.customStackCodes = unique;
         }
+        S.voice.startTrigger = st;
+        S.voice.endTrigger = et;
+        S.stackType = stackType;
+        S.shortDeal = shortDeal;
+        S.stebbinsStartSuit = Number.isInteger(stebbinsSuit) ? stebbinsSuit : 2;
+        S.stebbinsStartValue = Number.isInteger(stebbinsValue) ? stebbinsValue : 0;
+        if (stackType === 'stebbins') {
+          S.topCardCode = '';
+          writeTopCardCode('');
+        } else {
+          const p1s = Number(el('settings-pos1-suit') ? el('settings-pos1-suit').value : 0);
+          const p1v = Number(el('settings-pos1-value') ? el('settings-pos1-value').value : 0);
+          const selected = normalizeCardCode(cardCodeFromIdx(
+            Number.isInteger(p1s) ? p1s : 0,
+            Number.isInteger(p1v) ? p1v : 0
+          )) || '';
+          const defCode = normalizeCardCode(defaultPositionOneCodeForStack(stackType, S.customStackCodes)) || '';
+          S.topCardCode = (selected && defCode && selected === defCode) ? '' : selected;
+          writeTopCardCode(S.topCardCode);
+        }
         saveProfileStackSettings().then(() => {
           go('home');
         }).catch((err) => showError(err.message || 'Could not save settings.'));
@@ -2450,9 +2521,10 @@
         stackSel.onchange = () => {
           const wrap = el('settings-stebbins-wrap');
           const customWrap = el('settings-custom-wrap');
-          if (!wrap) return;
-          wrap.style.display = stackSel.value === 'stebbins' ? '' : 'none';
+          const pos1Wrap = el('settings-position1-wrap');
+          if (wrap) wrap.style.display = stackSel.value === 'stebbins' ? '' : 'none';
           if (customWrap) customWrap.style.display = stackSel.value === 'custom' ? '' : 'none';
+          if (pos1Wrap) pos1Wrap.style.display = stackSel.value === 'stebbins' ? 'none' : '';
         };
       }
       const shortDealBtn = el('settings-short-deal');
