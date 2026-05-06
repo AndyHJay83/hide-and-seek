@@ -1947,7 +1947,13 @@
       if (!data || !data.user) throw new Error('Could not create account.');
       if (!data.session) {
         const { error: signInErr } = await sb.auth.signInWithPassword({ email: normalized, password: password });
-        if (signInErr) throw signInErr;
+        if (signInErr) {
+          const msg = String(signInErr.message || '').toLowerCase();
+          if (msg.includes('invalid login credentials') || msg.includes('email not confirmed')) {
+            throw new Error('Account created, but login is blocked by email confirmation. In Supabase Auth settings, disable email confirmation for instant signup.');
+          }
+          throw signInErr;
+        }
       }
       await ensureProfileForEmail(normalized);
     }
@@ -2216,16 +2222,16 @@
     }
 
     function viewWelcome() {
-      if (requiresInstallGate()) {
-        return '<div class="panel center"><p>Please add this to your Home Screen.</p></div>';
-      }
       if (S.recoveryMode) {
         return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><p class="muted center">Set a new password</p><div><label>New Password</label><input id="recovery-password-input" type="password" placeholder="At least 6 characters"></div><div><label>Confirm Password</label><input id="recovery-password-confirm-input" type="password" placeholder="Repeat password"></div><button id="recovery-save-btn" class="btn-primary btn-full">SAVE NEW PASSWORD</button><button id="recovery-cancel-btn" class="btn-outline btn-full">Back to Login</button></div><div id="error-box" class="error"></div>';
+      }
+      if (requiresInstallGate()) {
+        return '<div class="panel center"><p>Please add this to your Home Screen.</p></div>';
       }
       return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><p class="muted center">Create an account or log in</p><div><label>Email</label><input id="login-email-input" type="email" placeholder="you@email.com" value="' + (S.loginEmail || readLastEmail() || '') + '"></div><div><label>Password</label><input id="login-password-input" type="password" placeholder="Choose a password"></div><div class="btn-row"><button id="signup-btn" class="btn-primary" style="flex:1;">CREATE ACCOUNT</button><button id="login-btn" class="btn-outline" style="flex:1;">LOG IN</button></div><button id="forgot-password-btn" class="btn-outline btn-full">Forgot Password?</button></div><div id="error-box" class="error"></div>';
     }
     function bindWelcome() {
-      if (requiresInstallGate()) {
+      if (!S.recoveryMode && requiresInstallGate()) {
         const installBtn = el('install-now-btn');
         if (installBtn) {
           installBtn.onclick = async () => {
