@@ -4,13 +4,12 @@
 
 1. Create a new Supabase project.
 2. Open SQL Editor and run `supabase-setup.sql`.
-3. Add allowed users manually to `public.profiles`:
-   - Required minimum fields: `email` and `is_active`.
-   - `id` can be omitted (defaults to generated UUID).
+3. User accounts are now created in-app with email + password.
+   - On first signup, the app auto-creates a matching `public.profiles` row.
 4. Confirm realtime is active for `sessions`:
    - `supabase-setup.sql` includes `alter publication supabase_realtime add table public.sessions`.
 5. Profile fields used by runtime:
-   - `email` (allowlist login key)
+   - `email` (user account identifier)
    - `temp_code` + `temp_code_expires_at` (rotating 4-digit accomplice code)
    - `is_active` (performer can activate/deactivate live receiving)
 
@@ -64,9 +63,9 @@ Notes:
 
 ### Performer Flow (`index.html`)
 
-1. Login:
-   - Enter email.
-   - App checks `profiles.email`; no match means login fails.
+1. Login / Signup:
+   - Enter email + password to create account or log in.
+   - App signs in via Supabase Auth and loads/creates matching `profiles` row.
 2. Home:
    - `PERFORM`: open waiting/result performance screen
    - `ACCOMPLICE`: generate QR + share code URL (`/accomplice/1234`)

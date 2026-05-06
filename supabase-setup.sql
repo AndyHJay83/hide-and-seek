@@ -68,6 +68,13 @@ for select
 to anon
 using (true);
 
+drop policy if exists "profiles_auth_select" on public.profiles;
+create policy "profiles_auth_select"
+on public.profiles
+for select
+to authenticated
+using (true);
+
 drop policy if exists "profiles_anon_insert" on public.profiles;
 create policy "profiles_anon_insert"
 on public.profiles
@@ -75,11 +82,26 @@ for insert
 to anon
 with check (email is not null);
 
+drop policy if exists "profiles_auth_insert" on public.profiles;
+create policy "profiles_auth_insert"
+on public.profiles
+for insert
+to authenticated
+with check (email is not null);
+
 drop policy if exists "profiles_anon_update" on public.profiles;
 create policy "profiles_anon_update"
 on public.profiles
 for update
 to anon
+using (true)
+with check (true);
+
+drop policy if exists "profiles_auth_update" on public.profiles;
+create policy "profiles_auth_update"
+on public.profiles
+for update
+to authenticated
 using (true)
 with check (true);
 
@@ -97,6 +119,13 @@ for insert
 to anon
 with check (true);
 
+drop policy if exists "sessions_auth_insert" on public.sessions;
+create policy "sessions_auth_insert"
+on public.sessions
+for insert
+to authenticated
+with check (true);
+
 -- Performer app (anon) expires old sessions before inserting a new one.
 drop policy if exists "sessions_anon_performer_update" on public.sessions;
 create policy "sessions_anon_performer_update"
@@ -106,11 +135,46 @@ to anon
 using (true)
 with check (true);
 
+drop policy if exists "sessions_auth_performer_update" on public.sessions;
+create policy "sessions_auth_performer_update"
+on public.sessions
+for update
+to authenticated
+using (true)
+with check (true);
+
 drop policy if exists "sessions_anon_update_active_unsubmitted_60m" on public.sessions;
 create policy "sessions_anon_update_active_unsubmitted_60m"
 on public.sessions
 for update
 to anon
+using (
+  expired = false
+  and created_at > (now() - interval '60 minutes')
+  and exists (
+    select 1
+    from public.profiles p
+    where p.id = performer_id
+      and p.is_active = true
+  )
+)
+with check (
+  expired = false
+  and submitted_at is not null
+  and created_at > (now() - interval '60 minutes')
+  and exists (
+    select 1
+    from public.profiles p
+    where p.id = performer_id
+      and p.is_active = true
+  )
+);
+
+drop policy if exists "sessions_auth_update_active_unsubmitted_60m" on public.sessions;
+create policy "sessions_auth_update_active_unsubmitted_60m"
+on public.sessions
+for update
+to authenticated
 using (
   expired = false
   and created_at > (now() - interval '60 minutes')

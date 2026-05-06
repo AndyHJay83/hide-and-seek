@@ -1039,7 +1039,7 @@
   <script src="./config.js"></script>
   <script>
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
     });
     const DEV_BYPASS_AUTH = false;
     const SUIT_NAMES = ['Spades', 'Hearts', 'Clubs', 'Diamonds'];
@@ -1712,6 +1712,7 @@
       customPhraseSaved: {},
       customPhraseDraft: {},
       customPhraseLocked: {},
+      recoveryMode: false,
       cameraStream: null,
       cameraParsedCodes: [],
       cameraRecorder: null,
@@ -1849,6 +1850,17 @@
 
     function storeLastEmail(email) { try { localStorage.setItem('has.last_login_email', (email || '').toLowerCase()); } catch (_) {} }
     function readLastEmail() { try { return localStorage.getItem('has.last_login_email') || ''; } catch (_) { return ''; } }
+    function inRecoveryFlow() {
+      const h = String(window.location.hash || '').toLowerCase();
+      const s = String(window.location.search || '').toLowerCase();
+      return h.includes('type=recovery') || s.includes('type=recovery');
+    }
+    function clearRecoveryUrlBits() {
+      try {
+        const clean = window.location.pathname + window.location.search.replace(/([?&])type=recovery(&|$)/i, '$1').replace(/[?&]$/, '');
+        window.history.replaceState({}, document.title, clean);
+      } catch (_) {}
+    }
     function isStandaloneMode() {
       return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
     }
@@ -1874,10 +1886,6 @@
       // Simple deterministic hash for client-side PIN check.
       return sha256Hex('HAS-PIN:' + salt + ':' + pin);
     }
-    async function hasProfile(email) {
-      const { data, error } = await sb.from('profiles').select('id').eq('email', email.toLowerCase()).eq('is_active', true).maybeSingle();
-      if (error) throw error; return !!data;
-    }
     async function loadProfile() {
       if (!S.profileId) return;
       const { data, error } = await sb.from('profiles').select('id, email, temp_code, temp_code_expires_at, is_active, short_deal, static_stack, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json').eq('id', S.profileId).maybeSingle();
@@ -1896,18 +1904,10 @@
         S.customStackCodes = Array.isArray(data.custom_stack_json) ? data.custom_stack_json : [];
       }
     }
-    async function loginByEmail(email) {
-      const normalized = (email || '').trim().toLowerCase();
-      const { data, error } = await sb
-        .from('profiles')
-        .select('id, email, temp_code, temp_code_expires_at, is_active, short_deal, static_stack, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json')
-        .eq('email', normalized)
-        .eq('is_active', true)
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) throw new Error('Email is not authorized.');
-      S.profileId = data.id;
-      S.email = data.email || normalized;
+    function assignProfileToState(data, fallbackEmail) {
+      if (!data) return;
+      S.profileId = data.id || S.profileId;
+      S.email = data.email || fallbackEmail || '';
       S.tempCode = data.temp_code || '';
       S.tempCodeExpiresAt = data.temp_code_expires_at || null;
       S.isActive = data.is_active !== false;
@@ -1918,6 +1918,51 @@
       S.stebbinsStartValue = Number.isInteger(data.stebbins_start_value) ? data.stebbins_start_value : 0;
       S.customStackCodes = Array.isArray(data.custom_stack_json) ? data.custom_stack_json : [];
       storeLastEmail(S.email);
+    }
+    async function ensureProfileForEmail(email) {
+      const normalized = (email || '').trim().toLowerCase();
+      const { data, error } = await sb
+        .from('profiles')
+        .select('id, email, temp_code, temp_code_expires_at, is_active, short_deal, static_stack, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json')
+        .eq('email', normalized)
+        .maybeSingle();
+      if (error) throw new Error(mapSetupError(error));
+      if (data) {
+        assignProfileToState(data, normalized);
+        return data;
+      }
+      const { data: created, error: createErr } = await sb
+        .from('profiles')
+        .insert({ email: normalized, is_active: true })
+        .select('id, email, temp_code, temp_code_expires_at, is_active, short_deal, static_stack, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json')
+        .single();
+      if (createErr) throw new Error(mapSetupError(createErr));
+      assignProfileToState(created, normalized);
+      return created;
+    }
+    async function signUpWithPassword(email, password) {
+      const normalized = (email || '').trim().toLowerCase();
+      const { data, error } = await sb.auth.signUp({ email: normalized, password: password });
+      if (error) throw error;
+      if (!data || !data.user) throw new Error('Could not create account.');
+      if (!data.session) {
+        const { error: signInErr } = await sb.auth.signInWithPassword({ email: normalized, password: password });
+        if (signInErr) throw signInErr;
+      }
+      await ensureProfileForEmail(normalized);
+    }
+    async function signInWithPassword(email, password) {
+      const normalized = (email || '').trim().toLowerCase();
+      const { data, error } = await sb.auth.signInWithPassword({ email: normalized, password: password });
+      if (error) throw error;
+      if (!data || !data.user) throw new Error('Invalid login.');
+      await ensureProfileForEmail(normalized);
+    }
+    async function sendPasswordReset(email) {
+      const normalized = (email || '').trim().toLowerCase();
+      const redirectTo = (APP_URL || '').replace(/\/$/, '') + '/';
+      const { error } = await sb.auth.resetPasswordForEmail(normalized, { redirectTo: redirectTo });
+      if (error) throw error;
     }
     async function ensureActiveTempCode() {
       if (!S.profileId) throw new Error('No profile loaded.');
@@ -2174,7 +2219,10 @@
       if (requiresInstallGate()) {
         return '<div class="panel center"><p>Please add this to your Home Screen.</p></div>';
       }
-      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><p class="muted center">Login with your Mealing Membership email</p><div><label>Email</label><input id="login-email-input" type="email" placeholder="you@email.com" value="' + (S.loginEmail || readLastEmail() || '') + '"></div><button id="login-email-btn" class="btn-primary btn-full">LOG IN</button></div><div id="error-box" class="error"></div>';
+      if (S.recoveryMode) {
+        return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><p class="muted center">Set a new password</p><div><label>New Password</label><input id="recovery-password-input" type="password" placeholder="At least 6 characters"></div><div><label>Confirm Password</label><input id="recovery-password-confirm-input" type="password" placeholder="Repeat password"></div><button id="recovery-save-btn" class="btn-primary btn-full">SAVE NEW PASSWORD</button><button id="recovery-cancel-btn" class="btn-outline btn-full">Back to Login</button></div><div id="error-box" class="error"></div>';
+      }
+      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><p class="muted center">Create an account or log in</p><div><label>Email</label><input id="login-email-input" type="email" placeholder="you@email.com" value="' + (S.loginEmail || readLastEmail() || '') + '"></div><div><label>Password</label><input id="login-password-input" type="password" placeholder="Choose a password"></div><div class="btn-row"><button id="signup-btn" class="btn-primary" style="flex:1;">CREATE ACCOUNT</button><button id="login-btn" class="btn-outline" style="flex:1;">LOG IN</button></div><button id="forgot-password-btn" class="btn-outline btn-full">Forgot Password?</button></div><div id="error-box" class="error"></div>';
     }
     function bindWelcome() {
       if (requiresInstallGate()) {
@@ -2196,25 +2244,83 @@
         }
         return;
       }
-      el('login-email-btn').onclick = async () => {
+      if (S.recoveryMode) {
+        const saveBtn = el('recovery-save-btn');
+        if (saveBtn) {
+          saveBtn.onclick = async () => {
+            clearError();
+            const pw = (el('recovery-password-input').value || '').trim();
+            const pw2 = (el('recovery-password-confirm-input').value || '').trim();
+            if (!pw || pw.length < 6) return showError('Password must be at least 6 characters.');
+            if (pw !== pw2) return showError('Passwords do not match.');
+            try {
+              setBtn(saveBtn, true, 'Saving...');
+              const { error } = await sb.auth.updateUser({ password: pw });
+              if (error) throw error;
+              S.recoveryMode = false;
+              clearRecoveryUrlBits();
+              showToast('Password updated. Log in with your new password.');
+              go('welcome');
+            } catch (err) {
+              showError(err && err.message ? err.message : 'Could not update password.');
+            } finally {
+              setBtn(saveBtn, false);
+            }
+          };
+        }
+        const cancelBtn = el('recovery-cancel-btn');
+        if (cancelBtn) {
+          cancelBtn.onclick = () => {
+            S.recoveryMode = false;
+            clearRecoveryUrlBits();
+            go('welcome');
+          };
+        }
+        return;
+      }
+      const authAction = async (mode) => {
         clearError();
-        const btn = el('login-email-btn');
+        const btn = mode === 'signup' ? el('signup-btn') : el('login-btn');
         const email = (el('login-email-input').value || '').trim().toLowerCase();
+        const password = (el('login-password-input').value || '').trim();
         if (!email) return showError('Enter your email.');
+        if (!password || password.length < 6) return showError('Password must be at least 6 characters.');
         try {
-          setBtn(btn, true, 'Checking...');
-          await loginByEmail(email);
+          setBtn(btn, true, mode === 'signup' ? 'Creating...' : 'Signing in...');
+          if (mode === 'signup') await signUpWithPassword(email, password);
+          else await signInWithPassword(email, password);
           await ensureActiveTempCode();
           S.session = await loadActiveSession();
           S.loginEmail = email;
           startCodeRefreshTimer();
           go('home');
         } catch (err) {
-          showError(mapSetupError(err) || 'Could not log in.');
+          showError(mapSetupError(err) || (mode === 'signup' ? 'Could not create account.' : 'Could not log in.'));
         } finally {
           setBtn(btn, false);
         }
       };
+      const signupBtn = el('signup-btn');
+      if (signupBtn) signupBtn.onclick = () => authAction('signup');
+      const loginBtn = el('login-btn');
+      if (loginBtn) loginBtn.onclick = () => authAction('login');
+      const forgotBtn = el('forgot-password-btn');
+      if (forgotBtn) {
+        forgotBtn.onclick = async () => {
+          clearError();
+          const email = (el('login-email-input').value || '').trim().toLowerCase();
+          if (!email) return showError('Enter your email first.');
+          try {
+            setBtn(forgotBtn, true, 'Sending...');
+            await sendPasswordReset(email);
+            showToast('Reset email sent.');
+          } catch (err) {
+            showError(mapSetupError(err) || 'Could not send reset email.');
+          } finally {
+            setBtn(forgotBtn, false);
+          }
+        };
+      }
     }
 
     function viewHome() {
@@ -3432,6 +3538,7 @@
         S.tempCodeExpiresAt = null;
         S.session = null;
         S.showAccompliceInline = false;
+        try { await sb.auth.signOut(); } catch (_) {}
         go('welcome');
       };
     }
@@ -3462,6 +3569,27 @@
       S.loginEmail = readLastEmail();
       S.topCardCode = readTopCardCode();
       loadCustomPhraseConfigIntoState();
+      S.recoveryMode = inRecoveryFlow();
+      if (S.recoveryMode) {
+        S.view = 'welcome';
+        render();
+        return;
+      }
+      try {
+        const { data } = await sb.auth.getSession();
+        const session = data && data.session;
+        const email = session && session.user && session.user.email ? String(session.user.email).toLowerCase() : '';
+        if (email) {
+          await ensureProfileForEmail(email);
+          await ensureActiveTempCode();
+          S.session = await loadActiveSession();
+          S.loginEmail = email;
+          startCodeRefreshTimer();
+          S.view = 'home';
+          render();
+          return;
+        }
+      } catch (_) {}
       S.view = 'welcome';
       render();
     }
