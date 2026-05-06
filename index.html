@@ -404,6 +404,8 @@
     }
     .custom-save-name {
       text-transform: none;
+      margin-top: 2px;
+      margin-bottom: 8px;
     }
     .phrase-wrap {
       border: 1px solid var(--border-mid);
@@ -2970,7 +2972,7 @@
       if (!wrap) return;
       S.customStacksLibrary = readCustomStackLibrary();
       if (!S.customStacksLibrary.length) {
-        wrap.innerHTML = '<div class="tiny">No saved custom stacks yet.</div>';
+        wrap.innerHTML = '';
         return;
       }
       wrap.innerHTML = S.customStacksLibrary.map((stack) => {
@@ -2994,16 +2996,23 @@
       S.settingsCustomPickerSuit = null;
       const pop = el('settings-custom-picker');
       if (!pop) return;
-      const values = el('settings-custom-picker-values');
-      const suits = el('settings-custom-picker-suits');
+      renderCustomPickerChoices();
       const label = el('settings-custom-picker-label');
       if (label) label.textContent = 'Set Card for Position #' + String(idx + 1);
-      if (values) values.innerHTML = VAL_SYMS.map((v, i) => '<button type="button" class="entry-card-btn" data-custom-v="' + i + '">' + v + '</button>').join('');
-      if (suits) suits.innerHTML = SUIT_NAMES.map((n, i) => {
-        const red = (i === 1 || i === 3) ? ' red' : '';
-        return '<button type="button" class="entry-suit-btn' + red + '" data-custom-s="' + i + '"><span>' + SUIT_SYMS[i] + '</span><span>' + n + '</span></button>';
-      }).join('');
       pop.classList.add('show');
+    }
+    function renderCustomPickerChoices() {
+      const values = el('settings-custom-picker-values');
+      const suits = el('settings-custom-picker-suits');
+      if (values) values.innerHTML = VAL_SYMS.map((v, i) => {
+        const sel = S.settingsCustomPickerValue === i ? ' sel' : '';
+        return '<button type="button" class="entry-card-btn' + sel + '" data-custom-v="' + i + '">' + v + '</button>';
+      }).join('');
+      if (suits) suits.innerHTML = SUIT_NAMES.map((n, i) => {
+        const sel = S.settingsCustomPickerSuit === i ? ' sel' : '';
+        const red = (i === 1 || i === 3) ? ' red' : '';
+        return '<button type="button" class="entry-suit-btn' + sel + red + '" data-custom-s="' + i + '"><span>' + SUIT_SYMS[i] + '</span><span>' + n + '</span></button>';
+      }).join('');
     }
     function closeCustomPicker() {
       const pop = el('settings-custom-picker');
@@ -3052,15 +3061,12 @@
       for (let i = 1; i <= 52; i++) {
         const value = String((S.customPhraseDraft && S.customPhraseDraft[i]) || '');
         const locked = !!(S.customPhraseLocked && S.customPhraseLocked[i]);
-        const count = lettersOnlyCount(value);
-        const isGood = value.trim() && count === i;
         rows.push(
           '<div class="' + phraseRowClassForPosition(i) + '" data-phrase-row="' + i + '">' +
             '<strong>' + i + '</strong>' +
             '<input id="settings-phrase-' + i + '" type="text" value="' + escHtml(value) + '"' + (locked ? ' disabled' : '') + '>' +
             '<button type="button" class="btn-outline" data-phrase-action="' + i + '">' + (locked ? 'Edit' : 'Save') + '</button>' +
-          '</div>' +
-          '<div class="tiny" style="margin:-2px 0 2px 4px;">Letters: ' + count + '/' + i + (isGood ? ' (OK)' : '') + '</div>'
+          '</div>'
         );
       }
       wrap.innerHTML = rows.join('');
@@ -3070,11 +3076,6 @@
       const input = el('settings-phrase-' + pos);
       if (!row || !input) return;
       row.className = phraseRowClassForPosition(pos);
-      const hint = row.nextElementSibling;
-      if (hint) {
-        const count = lettersOnlyCount(input.value || '');
-        hint.textContent = 'Letters: ' + count + '/' + pos + (count === pos && String(input.value || '').trim() ? ' (OK)' : '');
-      }
     }
     function viewSettings() {
       const stackOptions = [
@@ -3100,7 +3101,6 @@
           '</div>' +
           '<input id="settings-custom-name" class="custom-save-name" type="text" maxlength="42" placeholder="Custom stack name">' +
           '<input id="settings-custom-import-file" type="file" accept=".txt,text/plain" style="display:none;">' +
-          '<div class="tiny">Tap any slot, pick value then suit, and it auto-assigns.</div>' +
           '<div class="custom-saved-list" id="settings-custom-saved"></div>' +
         '</div>' +
         '<div id="settings-custom-picker" class="custom-picker-backdrop">' +
@@ -3116,7 +3116,6 @@
           '<div class="delay-row"><span>Custom Phrases</span><strong>' + (S.customPhrasesEnabled ? 'ON' : 'OFF') + '</strong></div>' +
           '<div class="active-toggle"><span class="active-label">Use Custom Phrases</span><button id="settings-custom-phrases-toggle" class="switch ' + (S.customPhrasesEnabled ? 'on' : 'off') + '" aria-label="toggle custom phrases"></button><div class="toggle-state ' + (S.customPhrasesEnabled ? 'on' : '') + '">' + (S.customPhrasesEnabled ? 'ON' : 'OFF') + '</div></div>' +
           '<div id="settings-phrase-editor"' + (S.customPhrasesEnabled ? '' : ' style="display:none;"') + '>' +
-            '<div class="tiny">Letter count must match position number. Non-letters and spaces are ignored for validation.</div>' +
             '<div id="settings-phrase-grid" class="phrase-grid"></div>' +
           '</div>' +
         '</div>';
@@ -3223,6 +3222,7 @@
           const b = e.target.closest('button[data-custom-v]');
           if (!b) return;
           S.settingsCustomPickerValue = Number(b.dataset.customV);
+          renderCustomPickerChoices();
           maybeApplyCustomPicker();
         };
       }
@@ -3232,6 +3232,7 @@
           const b = e.target.closest('button[data-custom-s]');
           if (!b) return;
           S.settingsCustomPickerSuit = Number(b.dataset.customS);
+          renderCustomPickerChoices();
           maybeApplyCustomPicker();
         };
       }
