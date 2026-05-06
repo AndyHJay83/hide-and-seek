@@ -300,6 +300,154 @@
     .stack-order-ref.hidden {
       display: none;
     }
+    .custom-stack-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .custom-stack-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      max-height: 320px;
+      overflow: auto;
+      padding: 2px;
+    }
+    .custom-slot {
+      border: 1px solid var(--border-mid);
+      background: #0a0a0a;
+      border-radius: 12px;
+      min-height: 64px;
+      padding: 8px 6px;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    .custom-slot-pos {
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+    .custom-slot-card {
+      font-size: 18px;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .custom-slot-card.red {
+      color: #ff9e9e;
+    }
+    .custom-slot.empty .custom-slot-card {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--dim);
+      letter-spacing: 0.04em;
+    }
+    .custom-slot.dup {
+      border-color: #ff5a5a;
+      box-shadow: 0 0 0 1px rgba(255,90,90,0.35);
+    }
+    .custom-tools {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .custom-saved-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 180px;
+      overflow: auto;
+      margin-top: 8px;
+    }
+    .custom-saved-row {
+      border: 1px solid var(--border-mid);
+      border-radius: 10px;
+      background: #0a0a0a;
+      padding: 8px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+    }
+    .custom-saved-meta {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .custom-picker-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.72);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 250;
+      padding: 16px;
+    }
+    .custom-picker-backdrop.show {
+      display: flex;
+    }
+    .custom-picker {
+      width: min(420px, 100%);
+      border: 1px solid var(--border-mid);
+      border-radius: 14px;
+      background: #0a0a0a;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .custom-save-name {
+      text-transform: none;
+    }
+    .phrase-wrap {
+      border: 1px solid var(--border-mid);
+      border-radius: 12px;
+      padding: 12px;
+      background: var(--surface-2);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .phrase-grid {
+      max-height: 280px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .phrase-row {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #0a0a0a;
+      padding: 8px;
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+    }
+    .phrase-row input {
+      min-height: 40px;
+      padding: 10px;
+      font-size: 14px;
+      text-transform: none;
+    }
+    .phrase-row.ok input {
+      border-color: rgba(85, 223, 132, 0.95);
+      box-shadow: 0 0 0 1px rgba(85,223,132,0.22);
+    }
+    .phrase-row.bad input {
+      border-color: rgba(255, 90, 90, 0.95);
+      box-shadow: 0 0 0 1px rgba(255,90,90,0.24);
+    }
+    .phrase-row.locked input {
+      opacity: 0.75;
+    }
     .input-method-label {
       display: block;
       text-align: center;
@@ -895,6 +1043,7 @@
     });
     const DEV_BYPASS_AUTH = false;
     const SUIT_NAMES = ['Spades', 'Hearts', 'Clubs', 'Diamonds'];
+    const SUIT_SYMS = ['♠', '♥', '♣', '♦'];
     const VAL_NAMES = ['Ace', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Jack', 'Queen', 'King'];
     const VAL_SYMS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
     const SUIT_LETTERS = ['S', 'H', 'C', 'D'];
@@ -1312,6 +1461,8 @@
     const SESSION_TTL_MS = 60 * 60 * 1000;
     const TEMP_CODE_REFRESH_MS = 30000;
     const LOCAL_TOP_CARD_CODE_KEY = 'has.top_card_code';
+    const LOCAL_CUSTOM_STACK_LIBRARY_KEY = 'has.custom_stack_library_v1';
+    const LOCAL_CUSTOM_PHRASES_KEY = 'has.custom_phrases_v1';
 
     function makeTempCode() {
       return String(Math.floor(Math.random() * 10000)).padStart(4, '0');
@@ -1350,6 +1501,109 @@
         if (!code) localStorage.removeItem(LOCAL_TOP_CARD_CODE_KEY);
         else localStorage.setItem(LOCAL_TOP_CARD_CODE_KEY, code);
       } catch (_) {}
+    }
+    function readCustomStackLibrary() {
+      try {
+        const raw = localStorage.getItem(LOCAL_CUSTOM_STACK_LIBRARY_KEY) || '';
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+          .map((entry) => {
+            const name = String((entry && entry.name) || '').trim();
+            const codes = Array.isArray(entry && entry.codes)
+              ? entry.codes.map((c) => normalizeCardCode(c)).filter(Boolean).slice(0, 52)
+              : [];
+            const id = String((entry && entry.id) || '').trim() || String(Date.now()) + '-' + Math.random().toString(36).slice(2, 8);
+            return {
+              id: id,
+              name: name || 'Untitled Stack',
+              codes: codes,
+              createdAt: Number(entry && entry.createdAt) || Date.now(),
+              updatedAt: Number(entry && entry.updatedAt) || Date.now()
+            };
+          })
+          .filter((entry) => entry.codes.length > 0)
+          .sort((a, b) => b.updatedAt - a.updatedAt);
+      } catch (_) {
+        return [];
+      }
+    }
+    function writeCustomStackLibrary(stacks) {
+      try {
+        localStorage.setItem(LOCAL_CUSTOM_STACK_LIBRARY_KEY, JSON.stringify(stacks || []));
+      } catch (_) {}
+    }
+    function lettersOnlyCount(text) {
+      return String(text || '').replace(/[^A-Za-z]/g, '').length;
+    }
+    function readCustomPhraseConfig() {
+      try {
+        const raw = localStorage.getItem(LOCAL_CUSTOM_PHRASES_KEY) || '';
+        if (!raw) return { enabled: false, phrases: {} };
+        const parsed = JSON.parse(raw);
+        const phrases = {};
+        const src = parsed && parsed.phrases ? parsed.phrases : {};
+        for (let i = 1; i <= 52; i++) {
+          const key = String(i);
+          const v = typeof src[key] === 'string' ? src[key].trim() : '';
+          if (!v) continue;
+          if (lettersOnlyCount(v) === i) phrases[key] = v;
+        }
+        return { enabled: !!(parsed && parsed.enabled), phrases: phrases };
+      } catch (_) {
+        return { enabled: false, phrases: {} };
+      }
+    }
+    function writeCustomPhraseConfig() {
+      const phrases = {};
+      for (let i = 1; i <= 52; i++) {
+        const v = String((S.customPhraseSaved && S.customPhraseSaved[i]) || '').trim();
+        if (!v) continue;
+        if (lettersOnlyCount(v) === i) phrases[String(i)] = v;
+      }
+      try {
+        localStorage.setItem(LOCAL_CUSTOM_PHRASES_KEY, JSON.stringify({
+          enabled: !!S.customPhrasesEnabled,
+          phrases: phrases
+        }));
+      } catch (_) {}
+    }
+    function loadCustomPhraseConfigIntoState() {
+      const cfg = readCustomPhraseConfig();
+      S.customPhrasesEnabled = !!cfg.enabled;
+      S.customPhraseSaved = {};
+      S.customPhraseDraft = {};
+      S.customPhraseLocked = {};
+      for (let i = 1; i <= 52; i++) {
+        const v = String(cfg.phrases[String(i)] || '');
+        S.customPhraseSaved[i] = v;
+        S.customPhraseDraft[i] = v || (PHRASES[i] || '');
+        S.customPhraseLocked[i] = !!v;
+      }
+    }
+    function customDuplicatesMap(codes) {
+      const out = {};
+      (codes || []).forEach((code, idx) => {
+        const c = normalizeCardCode(code || '');
+        if (!c) return;
+        if (!out[c]) out[c] = [];
+        out[c].push(idx);
+      });
+      const flagged = new Array(52).fill(false);
+      Object.keys(out).forEach((code) => {
+        if (out[code].length < 2) return;
+        out[code].forEach((i) => { flagged[i] = true; });
+      });
+      return flagged;
+    }
+    function cardTileText(code) {
+      const n = normalizeCardCode(code || '');
+      if (!n) return '';
+      const suit = n.slice(-1);
+      const value = n.slice(0, -1);
+      const suitIdx = SUIT_LETTERS.indexOf(suit);
+      return value + (suitIdx >= 0 ? SUIT_SYMS[suitIdx] : suit);
     }
     function tempCodeRemaining() {
       if (!S.tempCodeExpiresAt) return 0;
@@ -1420,6 +1674,10 @@
     }
     function phraseForDiff(diff) {
       const abs = Math.abs(diff);
+      const custom = String((S.customPhrasesEnabled && S.customPhraseSaved && S.customPhraseSaved[abs]) ? S.customPhraseSaved[abs] : '').trim();
+      if (custom && lettersOnlyCount(custom) === abs) {
+        return abs + '. ' + custom;
+      }
       if (!PHRASES[abs]) {
         return (diff > 0 ? '+' + diff : String(diff));
       }
@@ -1445,6 +1703,15 @@
         result: null
       },
       customStackCodes: [],
+      settingsCustomDraft: new Array(52).fill(''),
+      settingsCustomPickerIndex: -1,
+      settingsCustomPickerValue: null,
+      settingsCustomPickerSuit: null,
+      customStacksLibrary: [],
+      customPhrasesEnabled: false,
+      customPhraseSaved: {},
+      customPhraseDraft: {},
+      customPhraseLocked: {},
       cameraStream: null,
       cameraParsedCodes: [],
       cameraRecorder: null,
@@ -2672,6 +2939,143 @@
       };
     }
 
+    function settingsAssignedCustomCodes() {
+      return (S.settingsCustomDraft || []).map((c) => normalizeCardCode(c || '') || '').filter(Boolean);
+    }
+    function renderCustomStackGrid() {
+      const grid = el('settings-custom-grid');
+      if (!grid) return;
+      const flags = customDuplicatesMap(S.settingsCustomDraft || []);
+      grid.innerHTML = (S.settingsCustomDraft || []).map((raw, idx) => {
+        const code = normalizeCardCode(raw || '') || '';
+        const dup = !!flags[idx];
+        const classes = ['custom-slot'];
+        if (!code) classes.push('empty');
+        if (dup) classes.push('dup');
+        const tile = code ? cardTileText(code) : 'Tap to set';
+        const isRed = code && isRedCode(code) ? ' red' : '';
+        return '<button type="button" class="' + classes.join(' ') + '" data-custom-slot="' + idx + '"><span class="custom-slot-pos">#' + String(idx + 1) + '</span><span class="custom-slot-card' + isRed + '">' + tile + '</span></button>';
+      }).join('');
+      const assigned = settingsAssignedCustomCodes().length;
+      const dupCount = flags.filter(Boolean).length;
+      const countNode = el('settings-custom-count');
+      if (countNode) countNode.textContent = String(assigned) + '/52';
+      const hintNode = el('settings-custom-dup-note');
+      if (hintNode) hintNode.textContent = dupCount ? ('Duplicates: ' + dupCount + ' slot(s) highlighted in red.') : 'No duplicates.';
+      const exportBtn = el('settings-custom-export');
+      if (exportBtn) exportBtn.disabled = assigned === 0;
+    }
+    function renderCustomStackLibrary() {
+      const wrap = el('settings-custom-saved');
+      if (!wrap) return;
+      S.customStacksLibrary = readCustomStackLibrary();
+      if (!S.customStacksLibrary.length) {
+        wrap.innerHTML = '<div class="tiny">No saved custom stacks yet.</div>';
+        return;
+      }
+      wrap.innerHTML = S.customStacksLibrary.map((stack) => {
+        const preview = (stack.codes || []).slice(0, 5).join(' ');
+        return '' +
+          '<div class="custom-saved-row">' +
+            '<div>' +
+              '<div><strong>' + stack.name + '</strong></div>' +
+              '<div class="custom-saved-meta">' + stack.codes.length + ' cards' + (preview ? ' | ' + preview : '') + '</div>' +
+            '</div>' +
+            '<div class="btn-row">' +
+              '<button type="button" class="btn-outline" data-custom-load="' + stack.id + '">Load</button>' +
+              '<button type="button" class="btn-outline" data-custom-delete="' + stack.id + '">Delete</button>' +
+            '</div>' +
+          '</div>';
+      }).join('');
+    }
+    function openCustomPicker(idx) {
+      S.settingsCustomPickerIndex = idx;
+      S.settingsCustomPickerValue = null;
+      S.settingsCustomPickerSuit = null;
+      const pop = el('settings-custom-picker');
+      if (!pop) return;
+      const values = el('settings-custom-picker-values');
+      const suits = el('settings-custom-picker-suits');
+      const label = el('settings-custom-picker-label');
+      if (label) label.textContent = 'Set Card for Position #' + String(idx + 1);
+      if (values) values.innerHTML = VAL_SYMS.map((v, i) => '<button type="button" class="entry-card-btn" data-custom-v="' + i + '">' + v + '</button>').join('');
+      if (suits) suits.innerHTML = SUIT_NAMES.map((n, i) => {
+        const red = (i === 1 || i === 3) ? ' red' : '';
+        return '<button type="button" class="entry-suit-btn' + red + '" data-custom-s="' + i + '"><span>' + SUIT_SYMS[i] + '</span><span>' + n + '</span></button>';
+      }).join('');
+      pop.classList.add('show');
+    }
+    function closeCustomPicker() {
+      const pop = el('settings-custom-picker');
+      if (pop) pop.classList.remove('show');
+      S.settingsCustomPickerIndex = -1;
+      S.settingsCustomPickerValue = null;
+      S.settingsCustomPickerSuit = null;
+    }
+    function maybeApplyCustomPicker() {
+      if (S.settingsCustomPickerIndex < 0) return;
+      if (!Number.isInteger(S.settingsCustomPickerValue) || !Number.isInteger(S.settingsCustomPickerSuit)) return;
+      S.settingsCustomDraft[S.settingsCustomPickerIndex] = cardCodeFromIdx(S.settingsCustomPickerSuit, S.settingsCustomPickerValue);
+      closeCustomPicker();
+      renderCustomStackGrid();
+      renderCustomStackLibrary();
+      const stackRef = el('settings-stack-order');
+      if (stackRef && !stackRef.classList.contains('hidden')) {
+        const stype = (el('settings-stack-type') ? el('settings-stack-type').value : S.stackType) || 'stebbins';
+        const stebSuit = Number(el('settings-stebbins-suit') ? el('settings-stebbins-suit').value : S.stebbinsStartSuit);
+        const stebVal = Number(el('settings-stebbins-value') ? el('settings-stebbins-value').value : S.stebbinsStartValue);
+        stackRef.textContent = stackOrderReferenceText(stype, stebSuit, stebVal, settingsAssignedCustomCodes());
+      }
+    }
+    function phraseRowClassForPosition(pos) {
+      const text = String((S.customPhraseDraft && S.customPhraseDraft[pos]) || '');
+      const count = lettersOnlyCount(text);
+      const locked = !!(S.customPhraseLocked && S.customPhraseLocked[pos]);
+      const cls = ['phrase-row'];
+      if (locked) cls.push('locked');
+      if (!text.trim()) return cls.join(' ');
+      cls.push(count === pos ? 'ok' : 'bad');
+      return cls.join(' ');
+    }
+    function escHtml(text) {
+      return String(text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+    function renderCustomPhraseRows() {
+      const wrap = el('settings-phrase-grid');
+      if (!wrap) return;
+      const rows = [];
+      for (let i = 1; i <= 52; i++) {
+        const value = String((S.customPhraseDraft && S.customPhraseDraft[i]) || '');
+        const locked = !!(S.customPhraseLocked && S.customPhraseLocked[i]);
+        const count = lettersOnlyCount(value);
+        const isGood = value.trim() && count === i;
+        rows.push(
+          '<div class="' + phraseRowClassForPosition(i) + '" data-phrase-row="' + i + '">' +
+            '<strong>' + i + '</strong>' +
+            '<input id="settings-phrase-' + i + '" type="text" value="' + escHtml(value) + '"' + (locked ? ' disabled' : '') + '>' +
+            '<button type="button" class="btn-outline" data-phrase-action="' + i + '">' + (locked ? 'Edit' : 'Save') + '</button>' +
+          '</div>' +
+          '<div class="tiny" style="margin:-2px 0 2px 4px;">Letters: ' + count + '/' + i + (isGood ? ' (OK)' : '') + '</div>'
+        );
+      }
+      wrap.innerHTML = rows.join('');
+    }
+    function refreshPhraseRowVisual(pos) {
+      const row = document.querySelector('[data-phrase-row="' + pos + '"]');
+      const input = el('settings-phrase-' + pos);
+      if (!row || !input) return;
+      row.className = phraseRowClassForPosition(pos);
+      const hint = row.nextElementSibling;
+      if (hint) {
+        const count = lettersOnlyCount(input.value || '');
+        hint.textContent = 'Letters: ' + count + '/' + pos + (count === pos && String(input.value || '').trim() ? ' (OK)' : '');
+      }
+    }
     function viewSettings() {
       const stackOptions = [
         ['stebbins', 'Si Stebbins'],
@@ -2683,20 +3087,53 @@
         ['custom', 'Custom']
       ].map((it) => '<option value="' + it[0] + '"' + (S.stackType === it[0] ? ' selected' : '') + '>' + it[1] + '</option>').join('');
       const stebbinsCardBlock = '<div class="delay-wrap"><div class="delay-row"><span>Stebbins Position 1 Card</span><strong>' + cardLabel(S.stebbinsStartSuit, S.stebbinsStartValue) + '</strong></div><div class="btn-row"><select id="settings-stebbins-value" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + VAL_SYMS.map((v, i) => '<option value="' + i + '"' + (S.stebbinsStartValue === i ? ' selected' : '') + '>' + v + '</option>').join('') + '</select><select id="settings-stebbins-suit" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + SUIT_NAMES.map((n, i) => '<option value="' + i + '"' + (S.stebbinsStartSuit === i ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></div></div>';
-      const customBlock = '<div class="delay-wrap"><div class="delay-row"><span>Custom Stack</span><strong id="settings-custom-count">' + String(S.customStackCodes.length) + '/52</strong></div><textarea id="settings-custom-stack" style="width:100%;min-height:90px;margin-top:10px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:14px;padding:10px;">' + (S.customStackCodes || []).join(' ') + '</textarea><div class="tiny">Paste card codes in order (example: AC 4H 7S ...)</div></div>';
+      const customBlock = '' +
+        '<div class="delay-wrap">' +
+          '<div class="custom-stack-head"><span>Custom Stack Builder</span><strong id="settings-custom-count">0/52</strong></div>' +
+          '<div class="tiny" id="settings-custom-dup-note">No duplicates.</div>' +
+          '<div id="settings-custom-grid" class="custom-stack-grid"></div>' +
+          '<div class="custom-tools">' +
+            '<button id="settings-custom-clear" type="button" class="btn-outline">Clear All</button>' +
+            '<button id="settings-custom-import" type="button" class="btn-outline">Import .txt</button>' +
+            '<button id="settings-custom-export" type="button" class="btn-outline">Export .txt</button>' +
+            '<button id="settings-custom-save" type="button" class="btn-primary">Save Named Stack</button>' +
+          '</div>' +
+          '<input id="settings-custom-name" class="custom-save-name" type="text" maxlength="42" placeholder="Custom stack name">' +
+          '<input id="settings-custom-import-file" type="file" accept=".txt,text/plain" style="display:none;">' +
+          '<div class="tiny">Tap any slot, pick value then suit, and it auto-assigns.</div>' +
+          '<div class="custom-saved-list" id="settings-custom-saved"></div>' +
+        '</div>' +
+        '<div id="settings-custom-picker" class="custom-picker-backdrop">' +
+          '<div class="custom-picker">' +
+            '<div id="settings-custom-picker-label" class="tiny">Set Card</div>' +
+            '<div id="settings-custom-picker-values" class="entry-val-grid"></div>' +
+            '<div id="settings-custom-picker-suits" class="entry-suit-row"></div>' +
+            '<div class="btn-row"><button id="settings-custom-clear-slot" class="btn-outline" type="button">Clear Slot</button><button id="settings-custom-cancel" class="btn-outline" type="button">Cancel</button></div>' +
+          '</div>' +
+        '</div>';
+      const customPhraseBlock = '' +
+        '<div class="phrase-wrap">' +
+          '<div class="delay-row"><span>Custom Phrases</span><strong>' + (S.customPhrasesEnabled ? 'ON' : 'OFF') + '</strong></div>' +
+          '<div class="active-toggle"><span class="active-label">Use Custom Phrases</span><button id="settings-custom-phrases-toggle" class="switch ' + (S.customPhrasesEnabled ? 'on' : 'off') + '" aria-label="toggle custom phrases"></button><div class="toggle-state ' + (S.customPhrasesEnabled ? 'on' : '') + '">' + (S.customPhrasesEnabled ? 'ON' : 'OFF') + '</div></div>' +
+          '<div id="settings-phrase-editor"' + (S.customPhrasesEnabled ? '' : ' style="display:none;"') + '>' +
+            '<div class="tiny">Letter count must match position number. Non-letters and spaces are ignored for validation.</div>' +
+            '<div id="settings-phrase-grid" class="phrase-grid"></div>' +
+          '</div>' +
+        '</div>';
       const p1 = topCardIndicesForSettings(S.stackType, S.topCardCode, S.customStackCodes);
       const position1Block = '<div id="settings-position1-wrap"' + (S.stackType === 'stebbins' ? ' style="display:none;"' : '') + '><div class="delay-wrap"><div class="delay-row"><span>Position 1 Card</span><strong>' + cardLabel(p1.suit, p1.value) + '</strong></div><div class="btn-row"><select id="settings-pos1-value" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + VAL_SYMS.map((v, i) => '<option value="' + i + '"' + (p1.value === i ? ' selected' : '') + '>' + v + '</option>').join('') + '</select><select id="settings-pos1-suit" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + SUIT_NAMES.map((n, i) => '<option value="' + i + '"' + (p1.suit === i ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></div><div class="tiny">Same controls as Stebbins. Matches the stack default when unchanged.</div></div></div>';
-      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.tempCode || '----') + '</strong> <span class="muted">(' + formatCountdown(tempCodeRemaining()) + ')</span></p><div><div class="settings-stack-head"><label style="margin:0;">Card Stack</label><button id="settings-stack-info" type="button" class="stack-info-btn" aria-label="Show stack order reference">i</button></div><select id="settings-stack-type" style="width:100%;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + stackOptions + '</select><div id="settings-stack-order" class="stack-order-ref hidden"></div></div><div id="settings-stebbins-wrap"' + (S.stackType === 'stebbins' ? '' : ' style="display:none;"') + '>' + stebbinsCardBlock + '</div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div>' + position1Block + '<div class="active-toggle"><span class="active-label">Short Deal</span><button id="settings-short-deal" class="switch ' + (S.shortDeal ? 'on' : 'off') + '" aria-label="toggle short deal"></button><div class="toggle-state settings-short-deal-state ' + (S.shortDeal ? 'on' : '') + '">' + (S.shortDeal ? 'ON' : 'OFF') + '</div></div><div><label>Start Trigger Word</label><input id="settings-start-trigger" type="text" value="' + (S.voice.startTrigger || 'okay') + '"></div><div><label>End Trigger Word</label><input id="settings-end-trigger" type="text" value="' + (S.voice.endTrigger || 'amazing') + '"></div><div class="delay-wrap"><div class="delay-row"><span>Microphone Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div class="tiny">0 = manual activation</div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div></div><button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
+      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.tempCode || '----') + '</strong> <span class="muted">(' + formatCountdown(tempCodeRemaining()) + ')</span></p><div><div class="settings-stack-head"><label style="margin:0;">Card Stack</label><button id="settings-stack-info" type="button" class="stack-info-btn" aria-label="Show stack order reference">i</button></div><select id="settings-stack-type" style="width:100%;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + stackOptions + '</select><div id="settings-stack-order" class="stack-order-ref hidden"></div></div><div id="settings-stebbins-wrap"' + (S.stackType === 'stebbins' ? '' : ' style="display:none;"') + '>' + stebbinsCardBlock + '</div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div>' + position1Block + '<div class="active-toggle"><span class="active-label">Short Deal</span><button id="settings-short-deal" class="switch ' + (S.shortDeal ? 'on' : 'off') + '" aria-label="toggle short deal"></button><div class="toggle-state settings-short-deal-state ' + (S.shortDeal ? 'on' : '') + '">' + (S.shortDeal ? 'ON' : 'OFF') + '</div></div><div><label>Start Trigger Word</label><input id="settings-start-trigger" type="text" value="' + (S.voice.startTrigger || 'okay') + '"></div><div><label>End Trigger Word</label><input id="settings-end-trigger" type="text" value="' + (S.voice.endTrigger || 'amazing') + '"></div>' + customPhraseBlock + '<div class="delay-wrap"><div class="delay-row"><span>Microphone Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div class="tiny">0 = manual activation</div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div></div><button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
     }
     function bindSettings() {
+      const baseCustom = Array.isArray(S.customStackCodes) ? S.customStackCodes.map((c) => normalizeCardCode(c)).filter(Boolean) : [];
+      S.settingsCustomDraft = new Array(52).fill('').map((_, i) => baseCustom[i] || '');
       const stackRef = el('settings-stack-order');
       const refreshStackRef = () => {
         if (!stackRef) return;
         const stype = (el('settings-stack-type') ? el('settings-stack-type').value : S.stackType) || 'stebbins';
         const stebSuit = Number(el('settings-stebbins-suit') ? el('settings-stebbins-suit').value : S.stebbinsStartSuit);
         const stebVal = Number(el('settings-stebbins-value') ? el('settings-stebbins-value').value : S.stebbinsStartValue);
-        const customRaw = (el('settings-custom-stack') ? el('settings-custom-stack').value : (S.customStackCodes || []).join(' ')).trim();
-        const parsedCustom = parseCardCodesFromText(customRaw);
+        const parsedCustom = settingsAssignedCustomCodes();
         stackRef.textContent = stackOrderReferenceText(stype, stebSuit, stebVal, parsedCustom);
       };
       const stackInfoBtn = el('settings-stack-info');
@@ -2723,14 +3160,12 @@
           return;
         }
         if (stackType === 'custom') {
-          const rawCodes = (el('settings-custom-stack') ? el('settings-custom-stack').value : '').trim();
-          const parsed = parseCardCodesFromText(rawCodes);
-          const unique = Array.from(new Set(parsed));
-          if (unique.length !== 52) {
-            showError('Custom stack needs exactly 52 valid unique cards.');
+          const parsed = settingsAssignedCustomCodes();
+          if (!parsed.length) {
+            showError('Add at least one custom card before saving.');
             return;
           }
-          S.customStackCodes = unique;
+          S.customStackCodes = parsed;
         }
         S.voice.startTrigger = st;
         S.voice.endTrigger = et;
@@ -2772,8 +3207,204 @@
       if (stebSuitSel) stebSuitSel.onchange = refreshStackRef;
       const stebValSel = el('settings-stebbins-value');
       if (stebValSel) stebValSel.onchange = refreshStackRef;
-      const customInput = el('settings-custom-stack');
-      if (customInput) customInput.addEventListener('input', refreshStackRef);
+      renderCustomStackGrid();
+      renderCustomStackLibrary();
+      const customGrid = el('settings-custom-grid');
+      if (customGrid) {
+        customGrid.onclick = (e) => {
+          const b = e.target.closest('button[data-custom-slot]');
+          if (!b) return;
+          openCustomPicker(Number(b.dataset.customSlot));
+        };
+      }
+      const pickerValues = el('settings-custom-picker-values');
+      if (pickerValues) {
+        pickerValues.onclick = (e) => {
+          const b = e.target.closest('button[data-custom-v]');
+          if (!b) return;
+          S.settingsCustomPickerValue = Number(b.dataset.customV);
+          maybeApplyCustomPicker();
+        };
+      }
+      const pickerSuits = el('settings-custom-picker-suits');
+      if (pickerSuits) {
+        pickerSuits.onclick = (e) => {
+          const b = e.target.closest('button[data-custom-s]');
+          if (!b) return;
+          S.settingsCustomPickerSuit = Number(b.dataset.customS);
+          maybeApplyCustomPicker();
+        };
+      }
+      const clearSlotBtn = el('settings-custom-clear-slot');
+      if (clearSlotBtn) {
+        clearSlotBtn.onclick = () => {
+          if (S.settingsCustomPickerIndex < 0) return;
+          S.settingsCustomDraft[S.settingsCustomPickerIndex] = '';
+          closeCustomPicker();
+          renderCustomStackGrid();
+          refreshStackRef();
+        };
+      }
+      const cancelPickerBtn = el('settings-custom-cancel');
+      if (cancelPickerBtn) cancelPickerBtn.onclick = () => closeCustomPicker();
+      const pickerBg = el('settings-custom-picker');
+      if (pickerBg) {
+        pickerBg.onclick = (e) => {
+          if (e.target === pickerBg) closeCustomPicker();
+        };
+      }
+      const clearAllBtn = el('settings-custom-clear');
+      if (clearAllBtn) {
+        clearAllBtn.onclick = () => {
+          if (!window.confirm('Clear all 52 custom positions?')) return;
+          S.settingsCustomDraft = new Array(52).fill('');
+          renderCustomStackGrid();
+          refreshStackRef();
+        };
+      }
+      const importBtn = el('settings-custom-import');
+      const importFile = el('settings-custom-import-file');
+      if (importBtn && importFile) {
+        importBtn.onclick = () => importFile.click();
+        importFile.onchange = async () => {
+          const file = importFile.files && importFile.files[0];
+          if (!file) return;
+          try {
+            const txt = await file.text();
+            const parsed = parseCardCodesFromText(txt).slice(0, 52);
+            if (!parsed.length) {
+              showError('No valid card codes found in file.');
+              return;
+            }
+            S.settingsCustomDraft = new Array(52).fill('').map((_, i) => parsed[i] || '');
+            renderCustomStackGrid();
+            refreshStackRef();
+            showToast('Imported');
+          } catch (_) {
+            showError('Could not read import file.');
+          } finally {
+            importFile.value = '';
+          }
+        };
+      }
+      const exportBtn = el('settings-custom-export');
+      if (exportBtn) {
+        exportBtn.onclick = () => {
+          const rows = settingsAssignedCustomCodes();
+          if (!rows.length) return;
+          const blob = new Blob([rows.join('\n') + '\n'], { type: 'text/plain;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'custom-stack.txt';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        };
+      }
+      const saveNamedBtn = el('settings-custom-save');
+      if (saveNamedBtn) {
+        saveNamedBtn.onclick = () => {
+          const nameInput = el('settings-custom-name');
+          const name = String((nameInput && nameInput.value) || '').trim() || ('Custom ' + new Date().toLocaleString());
+          const codes = settingsAssignedCustomCodes();
+          if (!codes.length) return showError('Add at least one card before saving a named stack.');
+          const dupCount = customDuplicatesMap(S.settingsCustomDraft || []).filter(Boolean).length;
+          if (dupCount && !window.confirm('This stack has duplicates highlighted in red. Save anyway?')) return;
+          const library = readCustomStackLibrary();
+          const id = String(Date.now()) + '-' + Math.random().toString(36).slice(2, 8);
+          library.unshift({ id: id, name: name, codes: codes, createdAt: Date.now(), updatedAt: Date.now() });
+          writeCustomStackLibrary(library.slice(0, 80));
+          if (nameInput) nameInput.value = '';
+          renderCustomStackLibrary();
+          showToast('Saved');
+        };
+      }
+      const savedWrap = el('settings-custom-saved');
+      if (savedWrap) {
+        savedWrap.onclick = (e) => {
+          const loadBtn = e.target.closest('button[data-custom-load]');
+          const delBtn = e.target.closest('button[data-custom-delete]');
+          if (loadBtn) {
+            const stack = (S.customStacksLibrary || []).find((s) => s.id === loadBtn.dataset.customLoad);
+            if (!stack) return;
+            S.settingsCustomDraft = new Array(52).fill('').map((_, i) => stack.codes[i] || '');
+            renderCustomStackGrid();
+            refreshStackRef();
+            showToast('Loaded');
+            return;
+          }
+          if (delBtn) {
+            const id = delBtn.dataset.customDelete;
+            const stack = (S.customStacksLibrary || []).find((s) => s.id === id);
+            if (!stack) return;
+            if (!window.confirm('Delete saved stack "' + stack.name + '"?')) return;
+            const library = readCustomStackLibrary().filter((s) => s.id !== id);
+            writeCustomStackLibrary(library);
+            renderCustomStackLibrary();
+          }
+        };
+      }
+      const phraseToggle = el('settings-custom-phrases-toggle');
+      if (phraseToggle) {
+        phraseToggle.onclick = () => {
+          const next = !phraseToggle.classList.contains('on');
+          S.customPhrasesEnabled = next;
+          phraseToggle.classList.toggle('on', next);
+          phraseToggle.classList.toggle('off', !next);
+          const state = phraseToggle.parentElement ? phraseToggle.parentElement.querySelector('.toggle-state') : null;
+          if (state) {
+            state.classList.toggle('on', next);
+            state.textContent = next ? 'ON' : 'OFF';
+          }
+          const editor = el('settings-phrase-editor');
+          if (editor) editor.style.display = next ? '' : 'none';
+          writeCustomPhraseConfig();
+        };
+      }
+      renderCustomPhraseRows();
+      const phraseGrid = el('settings-phrase-grid');
+      if (phraseGrid) {
+        phraseGrid.addEventListener('input', (e) => {
+          const input = e.target && e.target.id ? e.target : null;
+          if (!input || !/^settings-phrase-\d+$/.test(input.id)) return;
+          const pos = Number(input.id.replace('settings-phrase-', ''));
+          if (!Number.isInteger(pos) || pos < 1 || pos > 52) return;
+          S.customPhraseDraft[pos] = input.value || '';
+          refreshPhraseRowVisual(pos);
+        });
+        phraseGrid.addEventListener('click', (e) => {
+          const btn = e.target.closest('button[data-phrase-action]');
+          if (!btn) return;
+          const pos = Number(btn.dataset.phraseAction);
+          if (!Number.isInteger(pos) || pos < 1 || pos > 52) return;
+          if (S.customPhraseLocked[pos]) {
+            S.customPhraseLocked[pos] = false;
+            renderCustomPhraseRows();
+            return;
+          }
+          const text = String((S.customPhraseDraft[pos] || '')).trim();
+          const count = lettersOnlyCount(text);
+          if (!text) {
+            showError('Phrase ' + pos + ' is empty.');
+            refreshPhraseRowVisual(pos);
+            return;
+          }
+          if (count !== pos) {
+            showError('Phrase ' + pos + ' must have exactly ' + pos + ' letters.');
+            refreshPhraseRowVisual(pos);
+            return;
+          }
+          S.customPhraseSaved[pos] = text;
+          S.customPhraseDraft[pos] = text;
+          S.customPhraseLocked[pos] = true;
+          writeCustomPhraseConfig();
+          clearError();
+          showToast('Phrase ' + pos + ' saved');
+          renderCustomPhraseRows();
+        });
+      }
       const shortDealBtn = el('settings-short-deal');
       if (shortDealBtn) {
         shortDealBtn.onclick = () => {
@@ -2788,6 +3419,7 @@
         };
       }
       initDelayPicker();
+      refreshStackRef();
       el('logout-btn').onclick = async () => {
         const ok = window.confirm('Log out now?');
         if (!ok) return;
@@ -2829,6 +3461,7 @@
       });
       S.loginEmail = readLastEmail();
       S.topCardCode = readTopCardCode();
+      loadCustomPhraseConfigIntoState();
       S.view = 'welcome';
       render();
     }
