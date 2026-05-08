@@ -1872,7 +1872,7 @@
     }
     function buildInlineAccompliceBlock() {
       const rem = S.session ? formatCountdown(sessionRemaining()) : '00:00';
-      return '<div class="inline-accomplice stack center"><div id="home-inline-qr" class="qr-box"></div><div id="home-inline-count" class="timer-center">' + rem + '</div><div class="btn-row equal"><button id="home-inline-copy" class="btn-primary">COPY LINK</button><button id="home-inline-reset" class="btn-outline">RESET</button></div></div>';
+      return '<div class="inline-accomplice stack center"><div id="home-inline-qr" class="qr-box"></div><div id="home-inline-count" class="timer-center">' + rem + '</div><div class="btn-row equal"><button id="home-inline-copy" class="btn-primary">COPY LINK</button><button id="home-inline-reset" class="btn-outline">RESET</button></div><button id="home-inline-perform" class="btn-green btn-full">PERFORM</button></div>';
     }
     function go(view) {
       clearSessionWatchers();
@@ -2447,6 +2447,8 @@
           }
         };
       }
+      const perf = el('home-inline-perform');
+      if (perf) perf.onclick = () => go('perform');
       S.homeTickTimer = setInterval(() => {
         const n = el('home-inline-count');
         const tc = el('temp-code-count');
@@ -3247,7 +3249,7 @@
       const forcedBottom = normalizeCardCode(S.forcedBottomCode || '') || 'AC';
       const fIdx = cardCodeToIdx(forcedBottom) || { suit: 2, value: 0 };
       const forceBottomBlock = '<div class="delay-wrap"><div class="active-toggle"><span class="active-label">Force Bottom Card</span><button id="settings-force-bottom" class="switch ' + (S.forceBottomCard ? 'on' : 'off') + '" aria-label="toggle force bottom card"></button><div class="toggle-state ' + (S.forceBottomCard ? 'on' : '') + '">' + (S.forceBottomCard ? 'ON' : 'OFF') + '</div></div><div id="settings-force-bottom-selects"' + (S.forceBottomCard ? '' : ' style="display:none;"') + '><div class="btn-row"><select id="settings-bottom-value" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + VAL_SYMS.map((v, i) => '<option value="' + i + '"' + (fIdx.value === i ? ' selected' : '') + '>' + v + '</option>').join('') + '</select><select id="settings-bottom-suit" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + SUIT_NAMES.map((n, i) => '<option value="' + i + '"' + (fIdx.suit === i ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></div><div class="tiny">When ON, this bottom card is always used to orient the stack.</div></div><div id="settings-force-bottom-note"' + (S.forceBottomCard ? ' style="display:none;"' : '') + ' class="tiny">When OFF, you enter bottom card before seeker/hider input.</div></div>';
-      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.tempCode || '----') + '</strong> <span class="muted">(' + formatCountdown(tempCodeRemaining()) + ')</span></p><div><div class="settings-stack-head"><label style="margin:0;">Card Stack</label><button id="settings-stack-info" type="button" class="stack-info-btn" aria-label="Show stack order reference">i</button></div>' + stackToggle + '<div id="settings-stack-order" class="stack-order-ref hidden"></div></div><div id="settings-stebbins-wrap"' + (S.stackType === 'stebbins' ? '' : ' style="display:none;"') + '>' + stebbinsCardBlock + '</div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div>' + forceBottomBlock + '<div class="active-toggle"><span class="active-label">Short Deal</span><button id="settings-short-deal" class="switch ' + (S.shortDeal ? 'on' : 'off') + '" aria-label="toggle short deal"></button><div class="toggle-state settings-short-deal-state ' + (S.shortDeal ? 'on' : '') + '">' + (S.shortDeal ? 'ON' : 'OFF') + '</div></div><div><label>Start Trigger Word</label><input id="settings-start-trigger" type="text" value="' + (S.voice.startTrigger || 'okay') + '"></div><div><label>End Trigger Word</label><input id="settings-end-trigger" type="text" value="' + (S.voice.endTrigger || 'amazing') + '"></div>' + customPhraseBlock + '<div class="delay-wrap"><div class="delay-row"><span>Microphone Delay</span><strong id="delay-value">' + formatDelayLabel(S.soloDelaySec) + '</strong></div><div class="tiny">0 = manual activation</div><div id="delay-picker" class="delay-picker">' + renderDelayPickerOptions() + '</div></div><button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
+      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.tempCode || '----') + '</strong> <span class="muted">(' + formatCountdown(tempCodeRemaining()) + ')</span></p><div><div class="settings-stack-head"><label style="margin:0;">Card Stack</label><button id="settings-stack-info" type="button" class="stack-info-btn" aria-label="Show stack order reference">i</button></div>' + stackToggle + '<div id="settings-stack-order" class="stack-order-ref hidden"></div></div><div id="settings-stebbins-wrap"' + (S.stackType === 'stebbins' ? '' : ' style="display:none;"') + '>' + stebbinsCardBlock + '</div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div>' + forceBottomBlock + '<div class="active-toggle"><span class="active-label">Short Deal</span><button id="settings-short-deal" class="switch ' + (S.shortDeal ? 'on' : 'off') + '" aria-label="toggle short deal"></button><div class="toggle-state settings-short-deal-state ' + (S.shortDeal ? 'on' : '') + '">' + (S.shortDeal ? 'ON' : 'OFF') + '</div></div>' + customPhraseBlock + '<button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
     }
     function bindSettings() {
       const baseCustom = Array.isArray(S.customStackCodes) ? S.customStackCodes.map((c) => normalizeCardCode(c)).filter(Boolean) : [];
@@ -3270,16 +3272,10 @@
         };
       }
       el('settings-back').onclick = () => {
-        const st = (el('settings-start-trigger').value || '').trim().toLowerCase();
-        const et = (el('settings-end-trigger').value || '').trim().toLowerCase();
         const stackType = S.stackType || 'stebbins';
         const shortDeal = !!(el('settings-short-deal') && el('settings-short-deal').classList.contains('on'));
         const stebbinsSuit = Number(el('settings-stebbins-suit') ? el('settings-stebbins-suit').value : S.stebbinsStartSuit);
         const stebbinsValue = Number(el('settings-stebbins-value') ? el('settings-stebbins-value').value : S.stebbinsStartValue);
-        if (!st || !et) {
-          showError('Start and end triggers are required.');
-          return;
-        }
         if (!STACK_TYPES.includes(stackType)) {
           showError('Invalid stack selection.');
           return;
@@ -3292,8 +3288,6 @@
           }
           S.customStackCodes = parsed;
         }
-        S.voice.startTrigger = st;
-        S.voice.endTrigger = et;
         S.stackType = stackType;
         S.shortDeal = shortDeal;
         S.stebbinsStartSuit = Number.isInteger(stebbinsSuit) ? stebbinsSuit : 2;
@@ -3585,7 +3579,6 @@
           }
         };
       }
-      initDelayPicker();
       refreshStackRef();
       el('logout-btn').onclick = async () => {
         const ok = window.confirm('Log out now?');
@@ -3609,6 +3602,7 @@
       if (S.view === 'welcome') { app.innerHTML = viewWelcome(); bindWelcome(); return; }
       if (S.view === 'home') { app.innerHTML = viewHome(); bindHome(); return; }
       if (S.view === 'accomplice-send') { app.innerHTML = viewAccompliceSend(); await bindAccompliceSend(); return; }
+      if (S.view === 'perform') { app.innerHTML = viewPerform(); bindPerform(); return; }
       if (S.view === 'voice') { app.innerHTML = viewVoice(); bindVoice(); return; }
       if (S.view === 'camera-stack') { app.innerHTML = viewCameraStack(); await bindCameraStack(); return; }
       if (S.view === 'settings') { app.innerHTML = viewSettings(); bindSettings(); }
