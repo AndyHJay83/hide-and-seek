@@ -1499,6 +1499,9 @@
       if (/column .*temp_code.* does not exist/i.test(msg)) {
         return 'Database not migrated yet: run supabase-setup.sql (or fix-temp-code-columns.sql) in Supabase SQL Editor.';
       }
+      if (/column .*permanent_code.* does not exist/i.test(msg)) {
+        return 'Database not migrated yet: run supabase-setup.sql (or fix-permanent-code-column.sql) in Supabase SQL Editor.';
+      }
       return msg || 'Something went wrong.';
     }
     function logoMarkup(compact) {
