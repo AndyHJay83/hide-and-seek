@@ -5,6 +5,9 @@
 -- Remove legacy auth-only session policies (names may vary — ignore errors if missing).
 drop policy if exists "sessions_auth_insert_own" on public.sessions;
 drop policy if exists "sessions_performer_update_own" on public.sessions;
+drop policy if exists "sessions_auth_insert" on public.sessions;
+drop policy if exists "sessions_auth_performer_update" on public.sessions;
+drop policy if exists "sessions_auth_update_active_unsubmitted_60m" on public.sessions;
 
 -- Anon must be able to INSERT sessions (performer flow).
 drop policy if exists "sessions_anon_insert" on public.sessions;
@@ -12,6 +15,13 @@ create policy "sessions_anon_insert"
 on public.sessions
 for insert
 to anon
+with check (true);
+
+drop policy if exists "sessions_auth_insert" on public.sessions;
+create policy "sessions_auth_insert"
+on public.sessions
+for insert
+to authenticated
 with check (true);
 
 -- Anon must be able to UPDATE sessions to mark expired=true (createNewSession / toggle off).
@@ -23,3 +33,38 @@ for update
 to anon
 using (true)
 with check (true);
+
+drop policy if exists "sessions_auth_performer_update" on public.sessions;
+create policy "sessions_auth_performer_update"
+on public.sessions
+for update
+to authenticated
+using (true)
+with check (true);
+
+drop policy if exists "sessions_auth_update_active_unsubmitted_60m" on public.sessions;
+create policy "sessions_auth_update_active_unsubmitted_60m"
+on public.sessions
+for update
+to authenticated
+using (
+  expired = false
+  and created_at > (now() - interval '60 minutes')
+  and exists (
+    select 1
+    from public.profiles p
+    where p.id = performer_id
+      and p.is_active = true
+  )
+)
+with check (
+  expired = false
+  and submitted_at is not null
+  and created_at > (now() - interval '60 minutes')
+  and exists (
+    select 1
+    from public.profiles p
+    where p.id = performer_id
+      and p.is_active = true
+  )
+);

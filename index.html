@@ -1490,7 +1490,7 @@
         return 'Your database still ties sessions to the wrong table (often auth.users). In Supabase → SQL Editor, run fix-sessions-performer-fkey.sql from this app’s repo, then try again.';
       }
       if (/row-level security policy.*\bsessions\b/i.test(msg)) {
-        return 'Sessions are blocked by database rules. In Supabase → SQL Editor, run fix-sessions-rls-for-anon.sql from this app’s repo (same project as your Supabase URL in config.js), then try again.';
+        return 'Sessions are blocked by database rules. In Supabase → SQL Editor, run supabase-setup.sql from this app repo (or run fix-sessions-rls-for-anon.sql), then try again.';
       }
       if (/column .*temp_code.* does not exist/i.test(msg)) {
         return 'Database not migrated yet: run supabase-setup.sql (or fix-temp-code-columns.sql) in Supabase SQL Editor.';
@@ -1773,7 +1773,7 @@
       soloDelaySec: 0,
       soloCountdownIntv: null,
       soloStartTimer: null,
-      showAccompliceInline: false
+      showAccompliceInline: true
     };
 
     function el(id) { return document.getElementById(id); }
@@ -1871,9 +1871,8 @@
       }, 0);
     }
     function buildInlineAccompliceBlock() {
-      if (!S.showAccompliceInline) return '';
       const rem = S.session ? formatCountdown(sessionRemaining()) : '00:00';
-      return '<div class="inline-accomplice stack center"><div id="home-inline-qr" class="qr-box"></div><div id="home-inline-count" class="timer-center">' + rem + '</div><div class="btn-row equal"><button id="home-inline-copy" class="btn-primary">COPY LINK</button><button id="home-inline-reset" class="btn-outline">RESET</button></div><button id="home-inline-perform" class="btn-green btn-full">PERFORM</button></div>';
+      return '<div class="inline-accomplice stack center"><div id="home-inline-qr" class="qr-box"></div><div id="home-inline-count" class="timer-center">' + rem + '</div><div class="btn-row equal"><button id="home-inline-copy" class="btn-primary">COPY LINK</button><button id="home-inline-reset" class="btn-outline">RESET</button></div></div>';
     }
     function go(view) {
       clearSessionWatchers();
@@ -2037,7 +2036,7 @@
         if (!S.profileId || S.view === 'welcome') return;
         try {
           await ensureActiveTempCode();
-          if (S.showAccompliceInline && el('home-inline-qr')) render();
+          if (el('home-inline-qr')) render();
         } catch (_) {}
       }, TEMP_CODE_REFRESH_MS);
     }
@@ -2366,7 +2365,7 @@
     }
 
     function viewHome() {
-      return '<div class="home-header"><div class="logo logo-home">' + logoMarkup(true) + '</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button id="copy-public-link" class="code-chip">' + (S.tempCode || '----') + '</button><div id="temp-code-count" class="temp-code-count">' + formatCountdown(tempCodeRemaining()) + '</div><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div><button id="go-perform" class="action-tile solo-btn">PERFORM</button><div class="input-method-wrap"><select id="perform-input-method" class="input-method-select"><option value="voice"' + (S.performInputMethod === 'voice' ? ' selected' : '') + '>VOICE</option><option value="keypad"' + (S.performInputMethod === 'keypad' ? ' selected' : '') + '>KEYPAD</option></select></div><button id="go-accomplice" class="action-tile">ACCOMPLICE</button>' + buildInlineAccompliceBlock() + '</div><div id="error-box" class="error"></div>';
+      return '<div class="home-header"><div class="logo logo-home">' + logoMarkup(true) + '</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button id="copy-public-link" class="code-chip">' + (S.tempCode || '----') + '</button><div id="temp-code-count" class="temp-code-count">' + formatCountdown(tempCodeRemaining()) + '</div><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div>' + buildInlineAccompliceBlock() + '</div><div id="error-box" class="error"></div>';
     }
     function bindHome() {
       el('open-settings').onclick = () => go('settings');
@@ -2374,47 +2373,14 @@
         try {
           const prev = S.tempCode;
           await ensureActiveTempCode();
+          if (!S.session || sessionRemaining() <= 0 || S.session.expired) {
+            await createNewSession();
+          }
           if (S.tempCode !== prev) render();
         } catch (err) {
           showError(err.message || 'Could not refresh temporary code.');
         }
       })();
-      el('go-perform').onclick = () => {
-        if ((el('perform-input-method') ? el('perform-input-method').value : S.performInputMethod) === 'keypad') {
-          S.performInputMethod = 'keypad';
-          S.selfEntry = { step: 1, bottom: { suit: null, value: null }, seeker: { suit: null, value: null }, hider: { suit: null, value: null }, result: null };
-          go('self-keypad');
-          return;
-        }
-        S.performInputMethod = 'voice';
-        go('solo-perform');
-      };
-      el('go-accomplice').onclick = async () => {
-        clearError();
-        try {
-          await ensureActiveTempCode();
-          if (S.showAccompliceInline) {
-            S.showAccompliceInline = false;
-            render();
-            return;
-          }
-          if (!S.tempCode) throw new Error('No temporary code available on your profile.');
-          if (!S.isActive) throw new Error('Account is inactive. Turn ACTIVE on first.');
-          if (!S.session || sessionRemaining() <= 0 || S.session.expired) {
-            await createNewSession();
-          }
-          S.showAccompliceInline = true;
-          render();
-        } catch (err) {
-          showError(err.message || 'Could not open accomplice tools.');
-        }
-      };
-      const methodSel = el('perform-input-method');
-      if (methodSel) {
-        methodSel.onchange = () => {
-          S.performInputMethod = methodSel.value || 'voice';
-        };
-      }
       initDelayPicker();
       el('copy-public-link').onclick = async () => {
         clearError();
@@ -2444,78 +2410,63 @@
             if (!S.isActive && S.session) {
               await sb.from('sessions').update({ expired: true }).eq('performer_id', S.profileId).eq('expired', false);
               S.session = null;
-              S.showAccompliceInline = false;
             }
             render();
           } catch (err) { showError(err.message || 'Could not update account status.'); }
         };
       }
 
-      if (S.showAccompliceInline) {
-        const sessUrl = accompliceUrl();
-        const q = el('home-inline-qr');
-        if (q) {
-          q.innerHTML = '';
-          new QRCode(q, { text: sessUrl, width: 200, height: 200, colorDark: '#000', colorLight: '#fff' });
-        }
-        const copy = el('home-inline-copy');
-        if (copy) {
-          copy.onclick = async () => {
-            try {
-              await navigator.clipboard.writeText(sessUrl);
-              showToast('Copied');
-            } catch (_) {
-              window.prompt('Copy link:', sessUrl);
-            }
-          };
-        }
-        const reset = el('home-inline-reset');
-        if (reset) {
-          reset.onclick = async () => {
-            setBtn(reset, true, 'Resetting...');
-            try {
-              await createNewSession();
-              render();
-            } catch (err) {
-              showError(err.message || 'Could not reset session.');
-            } finally {
-              setBtn(reset, false);
-            }
-          };
-        }
-        const perf = el('home-inline-perform');
-        if (perf) perf.onclick = () => go('perform');
-        S.homeTickTimer = setInterval(() => {
-          const n = el('home-inline-count');
-          const tc = el('temp-code-count');
-          if (!tc || !n) {
-            if (S.homeTickTimer) { clearInterval(S.homeTickTimer); S.homeTickTimer = null; }
-            return;
-          }
-          tc.textContent = formatCountdown(tempCodeRemaining());
-          const rem = sessionRemaining();
-          n.textContent = formatCountdown(rem);
-          if (rem <= 0) {
-            if (S.homeTickTimer) { clearInterval(S.homeTickTimer); S.homeTickTimer = null; }
-            S.session = null;
-            S.showAccompliceInline = false;
-            render();
-          }
-        }, 1000);
-      } else {
-        S.homeTickTimer = setInterval(() => {
-          const tc = el('temp-code-count');
-          if (!tc) {
-            if (S.homeTickTimer) { clearInterval(S.homeTickTimer); S.homeTickTimer = null; }
-            return;
-          }
-          tc.textContent = formatCountdown(tempCodeRemaining());
-        }, 1000);
+      const sessUrl = accompliceUrl();
+      const q = el('home-inline-qr');
+      if (q) {
+        q.innerHTML = '';
+        new QRCode(q, { text: sessUrl, width: 200, height: 200, colorDark: '#000', colorLight: '#fff' });
       }
+      const copy = el('home-inline-copy');
+      if (copy) {
+        copy.onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(sessUrl);
+            showToast('Copied');
+          } catch (_) {
+            window.prompt('Copy link:', sessUrl);
+          }
+        };
+      }
+      const reset = el('home-inline-reset');
+      if (reset) {
+        reset.onclick = async () => {
+          setBtn(reset, true, 'Resetting...');
+          try {
+            await createNewSession();
+            render();
+          } catch (err) {
+            showError(err.message || 'Could not reset session.');
+          } finally {
+            setBtn(reset, false);
+          }
+        };
+      }
+      S.homeTickTimer = setInterval(() => {
+        const n = el('home-inline-count');
+        const tc = el('temp-code-count');
+        if (!tc || !n) {
+          if (S.homeTickTimer) { clearInterval(S.homeTickTimer); S.homeTickTimer = null; }
+          return;
+        }
+        tc.textContent = formatCountdown(tempCodeRemaining());
+        const rem = sessionRemaining();
+        n.textContent = formatCountdown(rem);
+        if (rem <= 0) {
+          if (S.homeTickTimer) { clearInterval(S.homeTickTimer); S.homeTickTimer = null; }
+          S.session = null;
+          render();
+        }
+      }, 1000);
     }
 
     function viewAccompliceSend() {
-      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack center"><h2>Accomplice Link</h2><div id="qr-box" class="qr-box"></div><div id="send-count" class="timer-center">' + formatCountdown(sessionRemaining()) + '</div><div class="btn-row equal"><button id="copy-link" class="btn-primary">COPY LINK</button><button id="reset-link" class="btn-outline">RESET</button></div><button id="go-perform-from-send" class="btn-primary btn-full">PERFORM</button><button id="back-home-from-send" class="btn-outline btn-full">Back Home</button></div><div id="error-box" class="error"></div>';
+      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack center"><h2>Accomplice Link</h2><div id="qr-box" class="qr-box"></div><div id="send-count" class="timer-center">' + formatCountdown(sessionRemaining()) + '</div><div class="btn-row equal"><button id="copy-link" class="btn-primary">COPY LINK</button><button id="reset-link" class="btn-outline">RESET</button></div><button id="back-home-from-send" class="btn-outline btn-full">Back Home</button></div><div id="error-box" class="error"></div>';
     }
     async function bindAccompliceSend() {
       clearError();
@@ -2535,7 +2486,6 @@
             window.prompt('Copy link:', sessUrl);
           }
         };
-        el('go-perform-from-send').onclick = () => go('perform');
         el('back-home-from-send').onclick = () => go('home');
         el('reset-link').onclick = async () => {
           const btn = el('reset-link');
@@ -3659,9 +3609,6 @@
       if (S.view === 'welcome') { app.innerHTML = viewWelcome(); bindWelcome(); return; }
       if (S.view === 'home') { app.innerHTML = viewHome(); bindHome(); return; }
       if (S.view === 'accomplice-send') { app.innerHTML = viewAccompliceSend(); await bindAccompliceSend(); return; }
-      if (S.view === 'perform') { app.innerHTML = viewPerform(); bindPerform(); return; }
-      if (S.view === 'solo-perform') { app.innerHTML = viewSoloPerform(); bindSoloPerform(); return; }
-      if (S.view === 'self-keypad') { app.innerHTML = viewSelfKeypad(); bindSelfKeypad(); return; }
       if (S.view === 'voice') { app.innerHTML = viewVoice(); bindVoice(); return; }
       if (S.view === 'camera-stack') { app.innerHTML = viewCameraStack(); await bindCameraStack(); return; }
       if (S.view === 'settings') { app.innerHTML = viewSettings(); bindSettings(); }
