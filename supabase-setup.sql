@@ -3,6 +3,7 @@ create extension if not exists "uuid-ossp";
 create table if not exists public.profiles (
   id uuid primary key default uuid_generate_v4(),
   email text unique not null,
+  permanent_code text,
   temp_code text,
   temp_code_expires_at timestamptz,
   is_active boolean not null default true,
@@ -16,6 +17,7 @@ create table if not exists public.profiles (
 );
 
 alter table public.profiles add column if not exists temp_code text;
+alter table public.profiles add column if not exists permanent_code text;
 alter table public.profiles add column if not exists temp_code_expires_at timestamptz;
 alter table public.profiles add column if not exists is_active boolean not null default true;
 alter table public.profiles add column if not exists short_deal boolean not null default false;
@@ -25,6 +27,7 @@ alter table public.profiles add column if not exists stebbins_start_suit integer
 alter table public.profiles add column if not exists stebbins_start_value integer not null default 0;
 alter table public.profiles add column if not exists custom_stack_json jsonb;
 create unique index if not exists profiles_temp_code_key on public.profiles(temp_code) where temp_code is not null;
+create unique index if not exists profiles_permanent_code_key on public.profiles(permanent_code) where permanent_code is not null;
 alter table public.profiles drop constraint if exists profiles_temp_code_format_chk;
 alter table public.profiles
   add constraint profiles_temp_code_format_chk

@@ -668,6 +668,7 @@
       background: #f7f7f7;
       box-shadow: 0 0 12px rgba(255,255,255,0.28);
       transition: transform .22s ease, background .22s ease;
+      transform: translateY(10px);
     }
     .switch.on {
       background: rgba(49,255,112,0.22);
@@ -675,7 +676,7 @@
       box-shadow: 0 0 18px rgba(49,255,112,0.3);
     }
     .switch.on::after {
-      transform: translateX(34px);
+      transform: translateX(34px) translateY(10px);
       background: #ffffff;
     }
     .toggle-state {
@@ -1478,6 +1479,9 @@
     function makeTempCode() {
       return String(Math.floor(Math.random() * 10000)).padStart(4, '0');
     }
+    function makePermanentCode() {
+      return String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
+    }
     function isTempCodeExpired(iso) {
       if (!iso) return true;
       const ts = new Date(iso).getTime();
@@ -1718,7 +1722,7 @@
 
     const S = {
       view: 'welcome', user: null, email: '', profileId: '',
-      loginEmail: '', tempCode: '', tempCodeExpiresAt: null, isActive: true,
+      loginEmail: '', publicCode: '', tempCode: '', tempCodeExpiresAt: null, isActive: true,
       deferredInstallPrompt: null,
       codeRefreshTimer: null,
       homeTickTimer: null,
@@ -1793,7 +1797,7 @@
       return m + ':' + s;
     }
     function accompliceUrl() {
-      const base = APP_URL.replace(/\/$/, '') + '/accomplice/' + (S.tempCode || '');
+      const base = APP_URL.replace(/\/$/, '') + '/accomplice/' + (S.publicCode || S.tempCode || '');
       return (S.session && S.session.id) ? (base + '?s=' + encodeURIComponent(S.session.id)) : base;
     }
     function stopVoice() {
@@ -1923,11 +1927,12 @@
     }
     async function loadProfile() {
       if (!S.profileId) return;
-      const { data, error } = await sb.from('profiles').select('id, email, temp_code, temp_code_expires_at, is_active, short_deal, static_stack, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json').eq('id', S.profileId).maybeSingle();
+      const { data, error } = await sb.from('profiles').select('id, email, permanent_code, temp_code, temp_code_expires_at, is_active, short_deal, static_stack, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json').eq('id', S.profileId).maybeSingle();
       if (error) throw new Error(mapSetupError(error));
       if (data) {
         S.profileId = data.id || S.profileId;
         S.email = data.email || '';
+        S.publicCode = data.permanent_code || '';
         S.tempCode = data.temp_code || '';
         S.tempCodeExpiresAt = data.temp_code_expires_at || null;
         S.isActive = data.is_active !== false;
@@ -1943,6 +1948,7 @@
       if (!data) return;
       S.profileId = data.id || S.profileId;
       S.email = data.email || fallbackEmail || '';
+      S.publicCode = data.permanent_code || '';
       S.tempCode = data.temp_code || '';
       S.tempCodeExpiresAt = data.temp_code_expires_at || null;
       S.isActive = data.is_active !== false;
@@ -1958,7 +1964,7 @@
       const normalized = (email || '').trim().toLowerCase();
       const { data, error } = await sb
         .from('profiles')
-        .select('id, email, temp_code, temp_code_expires_at, is_active, short_deal, static_stack, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json')
+        .select('id, email, permanent_code, temp_code, temp_code_expires_at, is_active, short_deal, static_stack, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json')
         .eq('email', normalized)
         .maybeSingle();
       if (error) throw new Error(mapSetupError(error));
@@ -1969,11 +1975,25 @@
       const { data: created, error: createErr } = await sb
         .from('profiles')
         .insert({ email: normalized, is_active: true })
-        .select('id, email, temp_code, temp_code_expires_at, is_active, short_deal, static_stack, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json')
+        .select('id, email, permanent_code, temp_code, temp_code_expires_at, is_active, short_deal, static_stack, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json')
         .single();
       if (createErr) throw new Error(mapSetupError(createErr));
       assignProfileToState(created, normalized);
       return created;
+    }
+    async function ensurePermanentCode() {
+      if (!S.profileId) throw new Error('No profile loaded.');
+      if (S.publicCode) return S.publicCode;
+      for (let i = 0; i < 8; i++) {
+        const next = makePermanentCode();
+        const { error } = await sb.from('profiles').update({ permanent_code: next }).eq('id', S.profileId).is('permanent_code', null);
+        if (!error) {
+          S.publicCode = next;
+          return next;
+        }
+        if (error.code !== '23505') throw new Error(mapSetupError(error));
+      }
+      throw new Error('Could not allocate a permanent code. Please try again.');
     }
     async function signUpWithPassword(email, password) {
       const normalized = (email || '').trim().toLowerCase();
@@ -2035,6 +2055,7 @@
       S.codeRefreshTimer = setInterval(async () => {
         if (!S.profileId || S.view === 'welcome') return;
         try {
+          await ensurePermanentCode();
           await ensureActiveTempCode();
           if (el('home-inline-qr')) render();
         } catch (_) {}
@@ -2330,6 +2351,7 @@
           setBtn(btn, true, mode === 'signup' ? 'Creating...' : 'Signing in...');
           if (mode === 'signup') await signUpWithPassword(email, password);
           else await signInWithPassword(email, password);
+          await ensurePermanentCode();
           await ensureActiveTempCode();
           S.session = await loadActiveSession();
           S.loginEmail = email;
@@ -2365,18 +2387,21 @@
     }
 
     function viewHome() {
-      return '<div class="home-header"><div class="logo logo-home">' + logoMarkup(true) + '</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button id="copy-public-link" class="code-chip">' + (S.tempCode || '----') + '</button><div id="temp-code-count" class="temp-code-count">' + formatCountdown(tempCodeRemaining()) + '</div><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div>' + buildInlineAccompliceBlock() + '</div><div id="error-box" class="error"></div>';
+      const codeLabel = S.publicCode || S.tempCode || '----';
+      const codeSub = S.publicCode ? 'PERMANENT CODE' : formatCountdown(tempCodeRemaining());
+      return '<div class="home-header"><div class="logo logo-home">' + logoMarkup(true) + '</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button id="copy-public-link" class="code-chip">' + codeLabel + '</button><div id="temp-code-count" class="temp-code-count">' + codeSub + '</div><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div>' + buildInlineAccompliceBlock() + '</div><div id="error-box" class="error"></div>';
     }
     function bindHome() {
       el('open-settings').onclick = () => go('settings');
       (async () => {
         try {
-          const prev = S.tempCode;
+          const prev = S.publicCode || S.tempCode;
+          await ensurePermanentCode();
           await ensureActiveTempCode();
           if (!S.session || sessionRemaining() <= 0 || S.session.expired) {
             await createNewSession();
           }
-          if (S.tempCode !== prev) render();
+          if ((S.publicCode || S.tempCode) !== prev) render();
         } catch (err) {
           showError(err.message || 'Could not refresh temporary code.');
         }
@@ -2384,8 +2409,9 @@
       initDelayPicker();
       el('copy-public-link').onclick = async () => {
         clearError();
+        await ensurePermanentCode();
         await ensureActiveTempCode();
-        if (!S.tempCode) return showError('No temporary link code available.');
+        if (!S.publicCode && !S.tempCode) return showError('No code available.');
         if (!S.isActive) return showError('Turn account back on before creating an active session link.');
         try {
           if (!S.session || sessionRemaining() <= 0 || S.session.expired) {
@@ -3211,7 +3237,7 @@
     }
     function viewSettings() {
       const stackToggle = '<div class="btn-row"><button id="settings-stack-stebbins" class="' + (S.stackType === 'stebbins' ? 'btn-primary' : 'btn-outline') + '" style="flex:1;">STEBBINS</button><button id="settings-stack-custom" class="' + (S.stackType === 'custom' ? 'btn-primary' : 'btn-outline') + '" style="flex:1;">CUSTOM</button></div>';
-      const stebbinsCardBlock = '<div class="delay-wrap"><div class="delay-row"><span>Stebbins Position 1 Card</span><strong>' + cardLabel(S.stebbinsStartSuit, S.stebbinsStartValue) + '</strong></div><div class="btn-row"><select id="settings-stebbins-value" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + VAL_SYMS.map((v, i) => '<option value="' + i + '"' + (S.stebbinsStartValue === i ? ' selected' : '') + '>' + v + '</option>').join('') + '</select><select id="settings-stebbins-suit" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + SUIT_NAMES.map((n, i) => '<option value="' + i + '"' + (S.stebbinsStartSuit === i ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></div></div>';
+      const stebbinsCardBlock = '<div class="delay-wrap"><div class="btn-row"><select id="settings-stebbins-value" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + VAL_SYMS.map((v, i) => '<option value="' + i + '"' + (S.stebbinsStartValue === i ? ' selected' : '') + '>' + v + '</option>').join('') + '</select><select id="settings-stebbins-suit" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + SUIT_NAMES.map((n, i) => '<option value="' + i + '"' + (S.stebbinsStartSuit === i ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></div></div>';
       const customBlock = '' +
         '<div class="delay-wrap">' +
           '<div class="custom-stack-head"><span>Custom Stack Builder</span><strong id="settings-custom-count">0/52</strong></div>' +
@@ -3588,6 +3614,7 @@
         stopVoice();
         S.profileId = '';
         S.email = '';
+        S.publicCode = '';
         S.tempCode = '';
         S.tempCodeExpiresAt = null;
         S.session = null;
@@ -3636,6 +3663,7 @@
         const email = session && session.user && session.user.email ? String(session.user.email).toLowerCase() : '';
         if (email) {
           await ensureProfileForEmail(email);
+          await ensurePermanentCode();
           await ensureActiveTempCode();
           S.session = await loadActiveSession();
           S.loginEmail = email;

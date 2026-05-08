@@ -9,8 +9,9 @@
 4. Confirm realtime is active for `sessions`:
    - `supabase-setup.sql` includes `alter publication supabase_realtime add table public.sessions`.
 5. Profile fields used by runtime:
-   - `email` (user account identifier)
-   - `temp_code` + `temp_code_expires_at` (rotating 4-digit accomplice code)
+- `email` (user account identifier)
+- `permanent_code` (stable accomplice code used for QR/link sharing)
+- `temp_code` + `temp_code_expires_at` (legacy compatibility)
    - `is_active` (performer can activate/deactivate live receiving)
 
 ## 2) GitHub Pages Setup
@@ -71,10 +72,10 @@ Notes:
    - `ACCOMPLICE`: generate QR + share code URL (`/accomplice/1234`)
    - `VOICE MODE`: capture spoken cards and calculate result locally
    - Activate/Deactivate toggle to control whether accomplice transmissions are accepted
-3. Temp code behavior:
-   - 4-digit code is generated per performer.
-   - Code rotates every 60 minutes.
-   - Rotation does not end an already-running performance session.
+3. Permanent code behavior:
+   - A unique code is generated per performer account and kept stable.
+   - Accomplice links/QR use this permanent code.
+   - Existing sessions still expire after 60 minutes.
 4. Perform mode:
    - Waits for accomplice submission
    - Updates via Supabase Realtime + 5s polling fallback
