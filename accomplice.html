@@ -425,11 +425,16 @@
             payload.face_suit = S.faceCard.suit;
             payload.face_value = S.faceCard.value;
           }
-          const { error } = await sb
+          let { error } = await sb
             .from('sessions')
             .update(payload)
             .eq('id', S.sessionId)
             .eq('expired', false);
+          if (error && (payload.face_suit != null) && /face_suit|face_value|schema cache/i.test(error.message || '')) {
+            delete payload.face_suit;
+            delete payload.face_value;
+            ({ error } = await sb.from('sessions').update(payload).eq('id', S.sessionId).eq('expired', false));
+          }
           if (error) throw error;
           screenSuccess();
         } catch (err) {
