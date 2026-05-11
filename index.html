@@ -1856,7 +1856,7 @@
       const base = APP_URL.replace(/\/$/, '') + '/accomplice/' + (S.publicCode || S.tempCode || '');
       const qs = [];
       if (S.session && S.session.id) qs.push('s=' + encodeURIComponent(S.session.id));
-      if (!S.forceBottomCard) qs.push('fc=0');
+      if (S.forceBottomCard) qs.push('fc=1');
       return qs.length ? (base + '?' + qs.join('&')) : base;
     }
     function stopVoice() {
