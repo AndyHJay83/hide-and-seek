@@ -13,8 +13,8 @@
       --border-mid: rgba(255,255,255,0.28);
       --border-bright: rgba(255,255,255,0.7);
       --white: #fff;
-      --muted: rgba(255,255,255,0.42);
-      --dim: rgba(255,255,255,0.18);
+      --muted: rgba(255,255,255,0.85);
+      --dim: rgba(255,255,255,0.6);
       --glow-xs: 0 0 10px rgba(255,255,255,0.15);
       --glow-sm: 0 0 22px rgba(255,255,255,0.25);
       --r: 14px;
@@ -62,41 +62,96 @@
     }
     .muted { color: var(--muted); }
     .center { text-align: center; }
-    .steps {
-      display: flex;
-      justify-content: center;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-    .dot {
-      width: 9px;
-      height: 9px;
-      border-radius: 999px;
+
+    /* Hub slot buttons */
+    .slot-btn {
+      width: 100%;
       border: 1px solid var(--border-mid);
       background: transparent;
-    }
-    .dot.active { background: #fff; border-color: #fff; box-shadow: var(--glow-xs); }
-    .dot.done { background: rgba(255,255,255,0.5); border-color: rgba(255,255,255,0.6); }
-    .role-chip {
-      display: inline-block;
-      border: 1px solid var(--border-mid);
-      border-radius: 999px;
-      padding: 6px 11px;
-      font-size: 12px;
-      letter-spacing: 0.08em;
-      margin-bottom: 12px;
-    }
-    .preview {
-      border: 1px solid var(--border-mid);
-      background: var(--surface-2);
+      color: #fff;
       border-radius: 12px;
-      min-height: 66px;
-      padding: 12px;
+      min-height: 64px;
+      padding: 14px 16px;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .slot-btn .slot-label {
+      font-size: 13px;
+      letter-spacing: 0.1em;
+      opacity: 0.7;
+    }
+    .slot-btn .slot-card {
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .slot-btn.filled {
+      border-color: rgba(255,255,255,0.5);
+      background: rgba(255,255,255,0.06);
+    }
+    .slot-btn.filled .slot-label { opacity: 1; }
+    .slot-btn.optional .slot-label { font-style: italic; }
+
+    /* Picker overlay */
+    .picker-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 100;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 0 12px env(safe-area-inset-bottom);
+      animation: fadeIn 0.15s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .picker-sheet {
+      width: 100%;
+      max-width: 560px;
+      background: #111;
+      border: 1px solid var(--border);
+      border-radius: 18px 18px 0 0;
+      padding: 18px 16px 20px;
+      animation: slideUp 0.2s ease;
+    }
+    @keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .picker-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .picker-title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+    }
+    .picker-close {
+      background: transparent;
+      border: 1px solid var(--border-mid);
+      color: #fff;
+      border-radius: 999px;
+      width: 32px;
+      height: 32px;
+      font-size: 16px;
+      cursor: pointer;
       display: grid;
       place-items: center;
-      margin-bottom: 12px;
-      font-size: 16px;
     }
+    .picker-step-label {
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 10px;
+      letter-spacing: 0.04em;
+    }
+
     .val-grid {
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -122,7 +177,6 @@
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 8px;
-      margin-bottom: 12px;
     }
     .suit-btn {
       border: 1px solid var(--border-mid);
@@ -147,9 +201,21 @@
       background: rgba(255,255,255,0.12);
       box-shadow: var(--glow-xs);
     }
-    .suit-btn.red {
-      color: #ff5c5c;
+    .suit-btn.red { color: #ff5c5c; }
+
+    /* Confirm screen */
+    .preview {
+      border: 1px solid var(--border-mid);
+      background: var(--surface-2);
+      border-radius: 12px;
+      min-height: 56px;
+      padding: 12px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 10px;
+      font-size: 15px;
     }
+
     .btn-primary, .btn-outline {
       width: 100%;
       border-radius: 12px;
@@ -177,6 +243,7 @@
 </head>
 <body>
   <div id="app" class="app"></div>
+  <div id="picker-root"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="/config.js"></script>
@@ -192,16 +259,17 @@
     const VALS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
     const VAL_NAMES = ['Ace','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Jack','Queen','King'];
     function cardLabel(suit, val) { return VAL_NAMES[val] + ' of ' + SUITS[suit].name; }
+    function shortLabel(suit, val) { return VALS[val] + SUITS[suit].sym; }
 
     const S = {
       sessionId: '',
       performerId: '',
       askFaceCard: false,
       faceCard: { suit: null, value: null },
-      faceSkipped: false,
-      step: 1,
       seeker: { suit: null, value: null },
-      hider: { suit: null, value: null }
+      hider: { suit: null, value: null },
+      pickerRole: null,
+      pickerValue: null
     };
 
     function el(id) { return document.getElementById(id); }
@@ -233,207 +301,209 @@
         '<button id="transmit-again-btn" class="btn-outline" style="margin-top:12px;">Transmit Again?</button>' +
         '</div>'
       );
-      const again = el('transmit-again-btn');
-      if (again) {
-        again.onclick = () => {
-          S.faceCard = { suit: null, value: null };
-          S.faceSkipped = false;
-          S.seeker = { suit: null, value: null };
-          S.hider = { suit: null, value: null };
-          S.step = S.askFaceCard ? 0 : 1;
-          renderStep();
+      el('transmit-again-btn').onclick = () => {
+        S.faceCard = { suit: null, value: null };
+        S.seeker = { suit: null, value: null };
+        S.hider = { suit: null, value: null };
+        renderHub();
+      };
+    }
+
+    function cardForRole(role) {
+      if (role === 'face') return S.faceCard;
+      if (role === 'seeker') return S.seeker;
+      return S.hider;
+    }
+
+    function isFilled(card) { return card.suit != null && card.value != null; }
+
+    function slotButton(role, label) {
+      const card = cardForRole(role);
+      const filled = isFilled(card);
+      const cls = 'slot-btn' + (filled ? ' filled' : '') + (role === 'face' ? ' optional' : '');
+      const cardText = filled ? shortLabel(card.suit, card.value) : 'Tap to set';
+      return '<button class="' + cls + '" data-role="' + role + '">' +
+        '<span class="slot-label">' + label + '</span>' +
+        '<span class="slot-card">' + cardText + '</span>' +
+        '</button>';
+    }
+
+    function renderHub() {
+      const seekerReady = isFilled(S.seeker);
+      const hiderReady = isFilled(S.hider);
+      const canTransmit = seekerReady && hiderReady;
+
+      let slots = '';
+      if (S.askFaceCard) {
+        slots += slotButton('face', 'FACE');
+      }
+      slots += slotButton('seeker', 'SEEKER');
+      slots += slotButton('hider', 'HIDER');
+
+      setHTML(
+        '<div class="logo">HIDE & SEEK</div>' +
+        '<div class="panel">' +
+        slots +
+        '<button id="hub-transmit" class="btn-primary" style="margin-top:6px;" ' + (canTransmit ? '' : 'disabled') + '>TRANSMIT</button>' +
+        '</div>'
+      );
+      bindHub();
+    }
+
+    function bindHub() {
+      document.querySelectorAll('.slot-btn[data-role]').forEach(function(btn) {
+        btn.onclick = function() { openPicker(btn.dataset.role); };
+      });
+      el('hub-transmit').onclick = function() {
+        if (!isFilled(S.seeker) || !isFilled(S.hider)) return;
+        renderConfirm();
+      };
+    }
+
+    /* ── Picker overlay ── */
+
+    function openPicker(role) {
+      S.pickerRole = role;
+      S.pickerValue = null;
+      renderPicker('value');
+    }
+
+    function closePicker() {
+      S.pickerRole = null;
+      S.pickerValue = null;
+      el('picker-root').innerHTML = '';
+    }
+
+    function renderPicker(phase) {
+      const role = S.pickerRole;
+      const titles = { face: 'FACE CARD', seeker: 'SEEKER', hider: 'HIDER' };
+      const title = titles[role] || role.toUpperCase();
+
+      let body = '';
+      if (phase === 'value') {
+        body += '<div class="picker-step-label">Select value</div>';
+        body += '<div class="val-grid" id="picker-vals">' + pickerValGrid() + '</div>';
+      } else {
+        body += '<div class="picker-step-label">Select suit</div>';
+        body += '<div class="suit-row" id="picker-suits">' + pickerSuitRow() + '</div>';
+      }
+
+      el('picker-root').innerHTML =
+        '<div class="picker-overlay" id="picker-overlay">' +
+        '<div class="picker-sheet">' +
+        '<div class="picker-header">' +
+        '<span class="picker-title">' + title + '</span>' +
+        '<button class="picker-close" id="picker-close-btn">✕</button>' +
+        '</div>' +
+        body +
+        '</div>' +
+        '</div>';
+
+      bindPicker(phase);
+    }
+
+    function pickerValGrid() {
+      var cells = [
+        { t: 'b', i: 0 }, { t: 'b', i: 1 }, { t: 'b', i: 2 }, { t: 'b', i: 3 }, { t: 'b', i: 4 },
+        { t: 'b', i: 5 }, { t: 'b', i: 6 }, { t: 'b', i: 7 }, { t: 'b', i: 8 }, { t: 'b', i: 9 },
+        { t: 's' }, { t: 'b', i: 10 }, { t: 'b', i: 11 }, { t: 'b', i: 12 }, { t: 's' }
+      ];
+      return cells.map(function(c) {
+        if (c.t === 's') return '<div aria-hidden="true"></div>';
+        var sel = S.pickerValue === c.i ? ' sel' : '';
+        return '<button class="card-btn' + sel + '" data-pv="' + c.i + '">' + VALS[c.i] + '</button>';
+      }).join('');
+    }
+
+    function pickerSuitRow() {
+      return SUITS.map(function(s) {
+        var red = (s.idx === 1 || s.idx === 3) ? ' red' : '';
+        return '<button class="suit-btn' + red + '" data-ps="' + s.idx + '"><span>' + s.sym + '</span><span>' + s.name + '</span></button>';
+      }).join('');
+    }
+
+    function bindPicker(phase) {
+      el('picker-close-btn').onclick = closePicker;
+      el('picker-overlay').onclick = function(e) {
+        if (e.target === el('picker-overlay')) closePicker();
+      };
+
+      if (phase === 'value') {
+        el('picker-vals').onclick = function(e) {
+          var btn = e.target.closest('button[data-pv]');
+          if (!btn) return;
+          S.pickerValue = Number(btn.dataset.pv);
+          renderPicker('suit');
+        };
+      } else {
+        el('picker-suits').onclick = function(e) {
+          var btn = e.target.closest('button[data-ps]');
+          if (!btn) return;
+          var suitIdx = Number(btn.dataset.ps);
+          var card = cardForRole(S.pickerRole);
+          card.value = S.pickerValue;
+          card.suit = suitIdx;
+          closePicker();
+          renderHub();
         };
       }
     }
 
-    function totalSteps() { return S.askFaceCard ? 4 : 3; }
+    /* ── Confirm screen ── */
 
-    function buildDots(activeIdx) {
-      const n = totalSteps();
-      let html = '';
-      for (let i = 1; i <= n; i++) {
-        let cls = 'dot';
-        if (i === activeIdx) cls += ' active';
-        else if (i < activeIdx) cls += ' done';
-        html += '<div class="' + cls + '"></div>';
-      }
-      return html;
-    }
-
-    function valGrid(card) {
-      const valCells = [
-        { type: 'btn', idx: 0 }, { type: 'btn', idx: 1 }, { type: 'btn', idx: 2 }, { type: 'btn', idx: 3 }, { type: 'btn', idx: 4 },
-        { type: 'btn', idx: 5 }, { type: 'btn', idx: 6 }, { type: 'btn', idx: 7 }, { type: 'btn', idx: 8 }, { type: 'btn', idx: 9 },
-        { type: 'spacer' }, { type: 'btn', idx: 10 }, { type: 'btn', idx: 11 }, { type: 'btn', idx: 12 }, { type: 'spacer' }
-      ];
-      return valCells.map((cell) => {
-        if (cell.type === 'spacer') return '<div aria-hidden="true"></div>';
-        const i = cell.idx;
-        const sel = card.value === i ? ' sel' : '';
-        return '<button class="card-btn' + sel + '" data-v="' + i + '">' + VALS[i] + '</button>';
-      }).join('');
-    }
-
-    function suitRow(card) {
-      return SUITS.map((s) => {
-        const sel = card.suit === s.idx ? ' sel' : '';
-        const red = (s.idx === 1 || s.idx === 3) ? ' red' : '';
-        return '<button class="suit-btn' + sel + red + '" data-s="' + s.idx + '"><span>' + s.sym + '</span><span>' + s.name + '</span></button>';
-      }).join('');
-    }
-
-    function buildFaceCardScreen() {
-      const card = S.faceCard;
-      const preview = (card.suit == null || card.value == null) ? 'Select value and suit' : cardLabel(card.suit, card.value);
-      const nextDisabled = (card.suit == null || card.value == null) ? 'disabled' : '';
-      return '' +
-        '<div class="logo">HIDE & SEEK</div>' +
-        '<div class="panel">' +
-        '<div class="steps">' + buildDots(1) + '</div>' +
-        '<div class="center"><span class="role-chip">FACE CARD</span></div>' +
-        '<div class="preview">' + preview + '</div>' +
-        '<div class="val-grid" id="val-grid">' + valGrid(card) + '</div>' +
-        '<div class="suit-row" id="suit-row">' + suitRow(card) + '</div>' +
-        '<button id="next-btn" class="btn-primary" ' + nextDisabled + '>Next: Seeker Card</button>' +
-        '<button id="skip-btn" class="btn-outline">Skip</button>' +
-        '</div>';
-    }
-
-    function refreshFaceCardScreen() {
-      setHTML(buildFaceCardScreen());
-      bindFaceCardScreen();
-    }
-
-    function bindFaceCardScreen() {
-      const card = S.faceCard;
-      el('val-grid').onclick = (e) => {
-        const btn = e.target.closest('button[data-v]');
-        if (!btn) return;
-        card.value = Number(btn.dataset.v);
-        refreshFaceCardScreen();
-      };
-      el('suit-row').onclick = (e) => {
-        const btn = e.target.closest('button[data-s]');
-        if (!btn) return;
-        card.suit = Number(btn.dataset.s);
-        refreshFaceCardScreen();
-      };
-      el('next-btn').onclick = () => {
-        if (card.value == null || card.suit == null) return;
-        S.faceSkipped = false;
-        S.step = 1;
-        renderStep();
-      };
-      el('skip-btn').onclick = () => {
-        S.faceSkipped = true;
-        S.faceCard = { suit: null, value: null };
-        S.step = 1;
-        renderStep();
-      };
-    }
-
-    function buildCardScreen(role, state) {
-      const isSeeker = role === 'seeker';
-      const card = state[role];
-      const preview = (card.suit == null || card.value == null) ? 'Select value and suit' : cardLabel(card.suit, card.value);
-      const nextDisabled = card.suit == null || card.value == null ? 'disabled' : '';
-
-      const dotIdx = S.askFaceCard ? (isSeeker ? 2 : 3) : (isSeeker ? 1 : 2);
-
-      return '' +
-        '<div class="logo">HIDE & SEEK</div>' +
-        '<div class="panel">' +
-        '<div class="steps">' + buildDots(dotIdx) + '</div>' +
-        '<div class="center"><span class="role-chip">' + (isSeeker ? 'SEEKER' : 'HIDER') + '</span></div>' +
-        '<div class="preview">' + preview + '</div>' +
-        '<div class="val-grid" id="val-grid">' + valGrid(card) + '</div>' +
-        '<div class="suit-row" id="suit-row">' + suitRow(card) + '</div>' +
-        '<button id="next-btn" class="btn-primary" ' + nextDisabled + '>' + (isSeeker ? 'Next: Hider Card' : 'Next: Confirm') + '</button>' +
-        '</div>';
-    }
-
-    function refreshCardScreen(role) {
-      setHTML(buildCardScreen(role, S));
-      bindCardScreen(role, S);
-    }
-
-    function bindCardScreen(role, state) {
-      const card = state[role];
-      el('val-grid').onclick = (e) => {
-        const btn = e.target.closest('button[data-v]');
-        if (!btn) return;
-        card.value = Number(btn.dataset.v);
-        refreshCardScreen(role);
-      };
-
-      el('suit-row').onclick = (e) => {
-        const btn = e.target.closest('button[data-s]');
-        if (!btn) return;
-        card.suit = Number(btn.dataset.s);
-        refreshCardScreen(role);
-      };
-
-      el('next-btn').onclick = () => {
-        if (card.value == null || card.suit == null) return;
-        if (role === 'seeker') {
-          S.step = 2;
-          renderStep();
-          return;
+    function renderConfirm() {
+      var faceRow = '';
+      if (S.askFaceCard) {
+        if (isFilled(S.faceCard)) {
+          faceRow = '<div class="preview">FACE: ' + cardLabel(S.faceCard.suit, S.faceCard.value) + '</div>';
+        } else {
+          faceRow = '<div class="preview" style="color:var(--muted);">FACE: Skipped</div>';
         }
-        S.step = 3;
-        renderStep();
-      };
-    }
-
-    function buildConfirmScreen() {
-      const confirmDotIdx = totalSteps();
-      const faceRow = (S.askFaceCard && !S.faceSkipped && S.faceCard.suit != null)
-        ? '<div class="preview">FACE CARD: ' + cardLabel(S.faceCard.suit, S.faceCard.value) + '</div>'
-        : (S.askFaceCard && S.faceSkipped ? '<div class="preview" style="color:var(--muted);">FACE CARD: Skipped</div>' : '');
-      return '' +
+      }
+      setHTML(
         '<div class="logo">HIDE & SEEK</div>' +
         '<div class="panel">' +
-        '<div class="steps">' + buildDots(confirmDotIdx) + '</div>' +
         '<h2 class="center" style="margin-bottom:12px;">Confirm Transmission</h2>' +
         faceRow +
         '<div class="preview">SEEKER: ' + cardLabel(S.seeker.suit, S.seeker.value) + '</div>' +
         '<div class="preview">HIDER: ' + cardLabel(S.hider.suit, S.hider.value) + '</div>' +
         '<button id="transmit-btn" class="btn-primary">Transmit</button>' +
         '<button id="edit-btn" class="btn-outline">Edit</button>' +
-        '</div>';
+        '</div>'
+      );
+      bindConfirm();
     }
 
-    function bindConfirmScreen() {
-      el('edit-btn').onclick = () => {
-        S.step = S.askFaceCard ? 0 : 1;
-        renderStep();
-      };
+    function bindConfirm() {
+      el('edit-btn').onclick = renderHub;
 
-      el('transmit-btn').onclick = async () => {
-        const btn = el('transmit-btn');
+      el('transmit-btn').onclick = async function() {
+        var btn = el('transmit-btn');
         btn.disabled = true;
         btn.textContent = 'Transmitting...';
         try {
-          const payload = {
+          var payload = {
             seeker_suit: S.seeker.suit,
             seeker_value: S.seeker.value,
             hider_suit: S.hider.suit,
             hider_value: S.hider.value,
             submitted_at: new Date().toISOString()
           };
-          if (S.askFaceCard && !S.faceSkipped && S.faceCard.suit != null && S.faceCard.value != null) {
+          if (S.askFaceCard && isFilled(S.faceCard)) {
             payload.face_suit = S.faceCard.suit;
             payload.face_value = S.faceCard.value;
           }
-          let { error } = await sb
+          var result = await sb
             .from('sessions')
             .update(payload)
             .eq('id', S.sessionId)
             .eq('expired', false);
+          var error = result.error;
           if (error && (payload.face_suit != null) && /face_suit|face_value|schema cache/i.test(error.message || '')) {
             delete payload.face_suit;
             delete payload.face_value;
-            ({ error } = await sb.from('sessions').update(payload).eq('id', S.sessionId).eq('expired', false));
+            result = await sb.from('sessions').update(payload).eq('id', S.sessionId).eq('expired', false);
+            error = result.error;
           }
           if (error) throw error;
           screenSuccess();
@@ -443,45 +513,25 @@
       };
     }
 
-    function renderStep() {
-      if (S.step === 0 && S.askFaceCard) {
-        setHTML(buildFaceCardScreen());
-        bindFaceCardScreen();
-        return;
-      }
-      if (S.step === 1) {
-        setHTML(buildCardScreen('seeker', S));
-        bindCardScreen('seeker', S);
-        return;
-      }
-      if (S.step === 2) {
-        setHTML(buildCardScreen('hider', S));
-        bindCardScreen('hider', S);
-        return;
-      }
-      if (S.step === 3) {
-        setHTML(buildConfirmScreen());
-        bindConfirmScreen();
-      }
-    }
+    /* ── Init ── */
 
     async function init() {
       screenLoading();
-      const params = new URLSearchParams(window.location.search);
-      const sessionId = params.get('s');
-      const code = (params.get('c') || '').toUpperCase().trim();
-      const pathCodeMatch = window.location.pathname.match(/\/accomplice\/([A-Z0-9]{4,12})\/?$/i);
-      const pathCode = pathCodeMatch ? pathCodeMatch[1].toUpperCase().trim() : '';
-      const resolvedCode = code || pathCode;
+      var params = new URLSearchParams(window.location.search);
+      var sessionId = params.get('s');
+      var code = (params.get('c') || '').toUpperCase().trim();
+      var pathCodeMatch = window.location.pathname.match(/\/accomplice\/([A-Z0-9]{3,12})\/?$/i);
+      var pathCode = pathCodeMatch ? pathCodeMatch[1].toUpperCase().trim() : '';
+      var resolvedCode = code || pathCode;
 
       try {
-        let data = null;
+        var data = null;
         if (sessionId) {
-          const r = await sb.from('sessions').select('*').eq('id', sessionId).maybeSingle();
+          var r = await sb.from('sessions').select('*').eq('id', sessionId).maybeSingle();
           if (r.error) throw r.error;
           data = r.data;
         } else if (resolvedCode) {
-          const pr = await sb
+          var pr = await sb
             .from('profiles')
             .select('id, is_active, permanent_code, temp_code, temp_code_expires_at')
             .or('permanent_code.eq.' + resolvedCode + ',temp_code.eq.' + resolvedCode)
@@ -489,12 +539,12 @@
           if (pr.error) throw pr.error;
           if (!pr.data) return screenError('Invalid Link', 'Unknown performer code.');
           if (!pr.data.is_active) return screenError('Performer Inactive', 'This performer is not currently accepting transmissions.');
-          const matchedTemp = (pr.data.temp_code || '').toUpperCase() === resolvedCode;
+          var matchedTemp = (pr.data.temp_code || '').toUpperCase() === resolvedCode;
           if (matchedTemp && (!pr.data.temp_code_expires_at || Date.now() >= new Date(pr.data.temp_code_expires_at).getTime())) {
             return screenError('Code Expired', 'This code has expired. Ask for a fresh one.');
           }
           S.performerId = pr.data.id;
-          const sr = await sb
+          var sr = await sb
             .from('sessions')
             .select('*')
             .eq('performer_id', pr.data.id)
@@ -511,16 +561,15 @@
         if (!data) return screenError('Invalid Session', 'Session not found.');
         S.sessionId = data.id;
         if (data.expired) return screenExpired();
-        const age = Date.now() - new Date(data.created_at).getTime();
+        var age = Date.now() - new Date(data.created_at).getTime();
         if (age > SESSION_TTL_MS) return screenExpired();
-        const fcParam = params.get('fc');
+        var fcParam = params.get('fc');
         if (fcParam === '1' || data.force_face_card === true) {
           S.askFaceCard = false;
         } else {
           S.askFaceCard = true;
         }
-        S.step = S.askFaceCard ? 0 : 1;
-        renderStep();
+        renderHub();
       } catch (err) {
         screenError('Error', err.message || 'Could not load session.');
       }
