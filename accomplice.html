@@ -196,6 +196,9 @@
     const S = {
       sessionId: '',
       performerId: '',
+      askFaceCard: false,
+      faceCard: { suit: null, value: null },
+      faceSkipped: false,
       step: 1,
       seeker: { suit: null, value: null },
       hider: { suit: null, value: null }
@@ -233,54 +236,119 @@
       const again = el('transmit-again-btn');
       if (again) {
         again.onclick = () => {
-          S.step = 1;
+          S.faceCard = { suit: null, value: null };
+          S.faceSkipped = false;
           S.seeker = { suit: null, value: null };
           S.hider = { suit: null, value: null };
+          S.step = S.askFaceCard ? 0 : 1;
           renderStep();
         };
       }
     }
 
-    function buildCardScreen(role, state) {
-      const isStep1 = role === 'seeker';
-      const card = state[role];
-      const preview = (card.suit == null || card.value == null) ? 'Select value and suit' : cardLabel(card.suit, card.value);
-      const nextDisabled = card.suit == null || card.value == null ? 'disabled' : '';
+    function totalSteps() { return S.askFaceCard ? 4 : 3; }
+
+    function buildDots(activeIdx) {
+      const n = totalSteps();
+      let html = '';
+      for (let i = 1; i <= n; i++) {
+        let cls = 'dot';
+        if (i === activeIdx) cls += ' active';
+        else if (i < activeIdx) cls += ' done';
+        html += '<div class="' + cls + '"></div>';
+      }
+      return html;
+    }
+
+    function valGrid(card) {
       const valCells = [
         { type: 'btn', idx: 0 }, { type: 'btn', idx: 1 }, { type: 'btn', idx: 2 }, { type: 'btn', idx: 3 }, { type: 'btn', idx: 4 },
         { type: 'btn', idx: 5 }, { type: 'btn', idx: 6 }, { type: 'btn', idx: 7 }, { type: 'btn', idx: 8 }, { type: 'btn', idx: 9 },
         { type: 'spacer' }, { type: 'btn', idx: 10 }, { type: 'btn', idx: 11 }, { type: 'btn', idx: 12 }, { type: 'spacer' }
       ];
+      return valCells.map((cell) => {
+        if (cell.type === 'spacer') return '<div aria-hidden="true"></div>';
+        const i = cell.idx;
+        const sel = card.value === i ? ' sel' : '';
+        return '<button class="card-btn' + sel + '" data-v="' + i + '">' + VALS[i] + '</button>';
+      }).join('');
+    }
 
-      const dot = (idx) => {
-        let cls = 'dot';
-        if ((isStep1 && idx === 1) || (!isStep1 && idx === 2) || (!isStep1 && S.step === 3 && idx === 3)) cls += ' active';
-        if ((!isStep1 && idx === 1) || (S.step === 3 && idx < 3)) cls += ' done';
-        return '<div class="' + cls + '"></div>';
+    function suitRow(card) {
+      return SUITS.map((s) => {
+        const sel = card.suit === s.idx ? ' sel' : '';
+        const red = (s.idx === 1 || s.idx === 3) ? ' red' : '';
+        return '<button class="suit-btn' + sel + red + '" data-s="' + s.idx + '"><span>' + s.sym + '</span><span>' + s.name + '</span></button>';
+      }).join('');
+    }
+
+    function buildFaceCardScreen() {
+      const card = S.faceCard;
+      const preview = (card.suit == null || card.value == null) ? 'Select value and suit' : cardLabel(card.suit, card.value);
+      const nextDisabled = (card.suit == null || card.value == null) ? 'disabled' : '';
+      return '' +
+        '<div class="logo">HIDE & SEEK</div>' +
+        '<div class="panel">' +
+        '<div class="steps">' + buildDots(1) + '</div>' +
+        '<div class="center"><span class="role-chip">FACE CARD</span></div>' +
+        '<div class="preview">' + preview + '</div>' +
+        '<div class="val-grid" id="val-grid">' + valGrid(card) + '</div>' +
+        '<div class="suit-row" id="suit-row">' + suitRow(card) + '</div>' +
+        '<button id="next-btn" class="btn-primary" ' + nextDisabled + '>Next: Seeker Card</button>' +
+        '<button id="skip-btn" class="btn-outline">Skip</button>' +
+        '</div>';
+    }
+
+    function refreshFaceCardScreen() {
+      setHTML(buildFaceCardScreen());
+      bindFaceCardScreen();
+    }
+
+    function bindFaceCardScreen() {
+      const card = S.faceCard;
+      el('val-grid').onclick = (e) => {
+        const btn = e.target.closest('button[data-v]');
+        if (!btn) return;
+        card.value = Number(btn.dataset.v);
+        refreshFaceCardScreen();
       };
+      el('suit-row').onclick = (e) => {
+        const btn = e.target.closest('button[data-s]');
+        if (!btn) return;
+        card.suit = Number(btn.dataset.s);
+        refreshFaceCardScreen();
+      };
+      el('next-btn').onclick = () => {
+        if (card.value == null || card.suit == null) return;
+        S.faceSkipped = false;
+        S.step = 1;
+        renderStep();
+      };
+      el('skip-btn').onclick = () => {
+        S.faceSkipped = true;
+        S.faceCard = { suit: null, value: null };
+        S.step = 1;
+        renderStep();
+      };
+    }
+
+    function buildCardScreen(role, state) {
+      const isSeeker = role === 'seeker';
+      const card = state[role];
+      const preview = (card.suit == null || card.value == null) ? 'Select value and suit' : cardLabel(card.suit, card.value);
+      const nextDisabled = card.suit == null || card.value == null ? 'disabled' : '';
+
+      const dotIdx = S.askFaceCard ? (isSeeker ? 2 : 3) : (isSeeker ? 1 : 2);
 
       return '' +
         '<div class="logo">HIDE & SEEK</div>' +
         '<div class="panel">' +
-        '<div class="steps">' + dot(1) + dot(2) + dot(3) + '</div>' +
-        '<div class="center"><span class="role-chip">' + (isStep1 ? 'SEEKER' : 'HIDER') + '</span></div>' +
+        '<div class="steps">' + buildDots(dotIdx) + '</div>' +
+        '<div class="center"><span class="role-chip">' + (isSeeker ? 'SEEKER' : 'HIDER') + '</span></div>' +
         '<div class="preview">' + preview + '</div>' +
-        '<div class="val-grid" id="val-grid">' +
-        valCells.map((cell) => {
-          if (cell.type === 'spacer') return '<div aria-hidden="true"></div>';
-          const i = cell.idx;
-          const sel = card.value === i ? ' sel' : '';
-          return '<button class="card-btn' + sel + '" data-v="' + i + '">' + VALS[i] + '</button>';
-        }).join('') +
-        '</div>' +
-        '<div class="suit-row" id="suit-row">' +
-        SUITS.map((s) => {
-          const sel = card.suit === s.idx ? ' sel' : '';
-          const red = (s.idx === 1 || s.idx === 3) ? ' red' : '';
-          return '<button class="suit-btn' + sel + red + '" data-s="' + s.idx + '"><span>' + s.sym + '</span><span>' + s.name + '</span></button>';
-        }).join('') +
-        '</div>' +
-        '<button id="next-btn" class="btn-primary" ' + nextDisabled + '>' + (isStep1 ? 'Next: Hider Card' : 'Next: Confirm') + '</button>' +
+        '<div class="val-grid" id="val-grid">' + valGrid(card) + '</div>' +
+        '<div class="suit-row" id="suit-row">' + suitRow(card) + '</div>' +
+        '<button id="next-btn" class="btn-primary" ' + nextDisabled + '>' + (isSeeker ? 'Next: Hider Card' : 'Next: Confirm') + '</button>' +
         '</div>';
     }
 
@@ -318,11 +386,16 @@
     }
 
     function buildConfirmScreen() {
+      const confirmDotIdx = totalSteps();
+      const faceRow = (S.askFaceCard && !S.faceSkipped && S.faceCard.suit != null)
+        ? '<div class="preview">FACE CARD: ' + cardLabel(S.faceCard.suit, S.faceCard.value) + '</div>'
+        : (S.askFaceCard && S.faceSkipped ? '<div class="preview" style="color:var(--muted);">FACE CARD: Skipped</div>' : '');
       return '' +
         '<div class="logo">HIDE & SEEK</div>' +
         '<div class="panel">' +
-        '<div class="steps"><div class="dot done"></div><div class="dot done"></div><div class="dot active"></div></div>' +
+        '<div class="steps">' + buildDots(confirmDotIdx) + '</div>' +
         '<h2 class="center" style="margin-bottom:12px;">Confirm Transmission</h2>' +
+        faceRow +
         '<div class="preview">SEEKER: ' + cardLabel(S.seeker.suit, S.seeker.value) + '</div>' +
         '<div class="preview">HIDER: ' + cardLabel(S.hider.suit, S.hider.value) + '</div>' +
         '<button id="transmit-btn" class="btn-primary">Transmit</button>' +
@@ -332,7 +405,7 @@
 
     function bindConfirmScreen() {
       el('edit-btn').onclick = () => {
-        S.step = 1;
+        S.step = S.askFaceCard ? 0 : 1;
         renderStep();
       };
 
@@ -341,15 +414,20 @@
         btn.disabled = true;
         btn.textContent = 'Transmitting...';
         try {
+          const payload = {
+            seeker_suit: S.seeker.suit,
+            seeker_value: S.seeker.value,
+            hider_suit: S.hider.suit,
+            hider_value: S.hider.value,
+            submitted_at: new Date().toISOString()
+          };
+          if (S.askFaceCard && !S.faceSkipped && S.faceCard.suit != null && S.faceCard.value != null) {
+            payload.face_suit = S.faceCard.suit;
+            payload.face_value = S.faceCard.value;
+          }
           const { error } = await sb
             .from('sessions')
-            .update({
-              seeker_suit: S.seeker.suit,
-              seeker_value: S.seeker.value,
-              hider_suit: S.hider.suit,
-              hider_value: S.hider.value,
-              submitted_at: new Date().toISOString()
-            })
+            .update(payload)
             .eq('id', S.sessionId)
             .eq('expired', false);
           if (error) throw error;
@@ -361,6 +439,11 @@
     }
 
     function renderStep() {
+      if (S.step === 0 && S.askFaceCard) {
+        setHTML(buildFaceCardScreen());
+        bindFaceCardScreen();
+        return;
+      }
       if (S.step === 1) {
         setHTML(buildCardScreen('seeker', S));
         bindCardScreen('seeker', S);
@@ -425,6 +508,8 @@
         if (data.expired) return screenExpired();
         const age = Date.now() - new Date(data.created_at).getTime();
         if (age > SESSION_TTL_MS) return screenExpired();
+        S.askFaceCard = data.force_face_card === false;
+        S.step = S.askFaceCard ? 0 : 1;
         renderStep();
       } catch (err) {
         screenError('Error', err.message || 'Could not load session.');

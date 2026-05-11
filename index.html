@@ -668,7 +668,7 @@
       background: #f7f7f7;
       box-shadow: 0 0 12px rgba(255,255,255,0.28);
       transition: transform .22s ease, background .22s ease;
-      transform: translateY(10px);
+      transform: translateY(2px);
     }
     .switch.on {
       background: rgba(49,255,112,0.22);
@@ -676,7 +676,7 @@
       box-shadow: 0 0 18px rgba(49,255,112,0.3);
     }
     .switch.on::after {
-      transform: translateX(34px) translateY(10px);
+      transform: translateX(34px) translateY(2px);
       background: #ffffff;
     }
     .toggle-state {
@@ -956,8 +956,8 @@
       top: calc(env(safe-area-inset-top) + 8px);
       left: calc(env(safe-area-inset-left) + 8px);
       background: transparent;
-      color: rgba(255,255,255,0.15);
-      border: 1px solid rgba(255,255,255,0.12);
+      color: #ffffff;
+      border: 1px solid rgba(255,255,255,0.3);
       padding: 5px 8px;
       border-radius: 8px;
       font-size: 11px;
@@ -996,7 +996,7 @@
       position: fixed;
       right: calc(env(safe-area-inset-right) + 10px);
       bottom: calc(env(safe-area-inset-bottom) + 10px);
-      color: rgba(255,255,255,0.2);
+      color: #ffffff;
       font-size: 11px;
       letter-spacing: 0.08em;
     }
@@ -1067,10 +1067,10 @@
     const STEBBINS_SUIT_CYCLE = ['C', 'H', 'S', 'D'];
     const STACK_CODES = {};
     const PHRASES = {
-      1: 'MIRACLE HIT (DIRECTLY NEXT TO)',
-      2: 'SEE - START ON SEEKER',
-      3: 'FIND - START ON SEEKER',
-      4: 'FOUR',
+      1: 'MIRACLE HIT',
+      2: 'AT',
+      3: 'SEE',
+      4: 'FIND',
       5: 'FOUND',
       6: 'SEE YOU',
       7: 'I SEE YOU',
@@ -1079,29 +1079,26 @@
       10: 'HERE YOU ARE',
       11: 'HIDE AND SEEK',
       12: 'I WILL FIND YOU',
-      13: 'NOWHERE TO HIDE',
-      14: 'YOU WILL BE FOUND',
-      15: 'SLOWLY BUT SURELY',
-      16: "I'M RIGHT BEHIND YOU",
-      17: "I'M COMING TO FIND YOU",
+      13: 'I HAVE FOUND YOU',
+      14: 'YOUR CARD IS HERE',
+      15: 'YOUR CARD IS FOUND',
+      16: 'I HAVE NOW FOUND YOU',
+      17: 'I HAVE JUST FOUND YOU',
       18: 'I WILL ALWAYS FIND YOU',
       19: 'YOU WILL BE HIDING HERE',
-      20: 'I FOUND YOUR HIDING SPOT',
-      21: 'I FOUND YOUR HIDING PLACE',
-      22: "LET'S FIND YOUR HIDING SPOT",
-      23: "YOU CAN RUN BUT YOU CAN'T HIDE",
-      24: 'YOU WILL BE HIDING RIGHT HERE',
+      20: 'YOUR CARD WILL HIDE HERE',
+      21: 'I CAN SEE YOUR HIDING SPOT',
+      22: 'I CAN FIND YOUR HIDING SPOT',
+      23: 'I WILL FIND YOUR HIDING SPOT',
+      24: 'I HAVE FOUND YOUR HIDING SPOT',
       25: 'I KNEW YOU WOULD BE HIDING HERE',
       26: 'EACH STEP TAKES ME CLOSER TO YOU',
       27: 'EACH STEP BRINGS ME CLOSER TO YOU',
-      28: 'THE SEARCH FOR YOUR CARD ENDS HERE',
+      28: 'YOUR CARD WILL BE HIDING JUST HERE',
       29: 'YOUR CARD WILL BE HIDING RIGHT HERE',
       30: 'THE CARD WILL BE HIDING EXACTLY HERE',
-      31: 'HOW ON EARTH DID YOU KNOW WHERE TO LOOK',
-      32: 'YOU WILL PROBABLY BE HIDING RIGHT HERE',
-      33: 'EVERY STEP I TAKE BRINGS ME CLOSER TO YOU',
-      34: 'EACH STEP I TAKE BRINGS ME DIRECTLY TO YOU',
-      35: 'EVERY STEP I TAKE BRINGS ME DIRECTLY TO YOU'
+      31: 'YOUR CARD WILL BE HIDING EXACTLY HERE',
+      32: 'YOUR CARD WILL PROBABLY BE HIDING HERE'
     };
 
     function cardPos(suit, val) { return suit * 13 + val + 1; }
@@ -1501,6 +1498,9 @@
       }
       if (/column .*permanent_code.* does not exist/i.test(msg)) {
         return 'Database not migrated yet: run supabase-setup.sql (or fix-permanent-code-column.sql) in Supabase SQL Editor.';
+      }
+      if (/column .*(face_suit|face_value|force_face_card).* does not exist/i.test(msg)) {
+        return 'Database not migrated yet: run fix-face-card-columns.sql in Supabase SQL Editor.';
       }
       return msg || 'Something went wrong.';
     }
@@ -2099,7 +2099,7 @@
       await ensureActiveTempCode();
       const { error: expireErr } = await sb.from('sessions').update({ expired: true }).eq('performer_id', S.profileId).eq('expired', false);
       if (expireErr) throw new Error(mapSetupError(expireErr));
-      const { data, error } = await sb.from('sessions').insert({ performer_id: S.profileId }).select('*').single();
+      const { data, error } = await sb.from('sessions').insert({ performer_id: S.profileId, force_face_card: !!S.forceBottomCard }).select('*').single();
       if (error) throw new Error(mapSetupError(error));
       S.session = data;
       S.performResult = null;
@@ -2538,13 +2538,80 @@
       if (!S.session) return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack center"><h2>No Active Session</h2><p class="muted">Create one from ACCOMPLICE first.</p><button id="perform-back" class="btn-outline btn-full">Back Home</button></div>';
       return '<div class="perform-screen"><button id="perform-exit" class="perform-exit">EXIT</button><div id="perform-main"><div class="perform-awaiting">AWAITING TRANSMISSION</div></div><div id="perform-timer" class="perform-timer">' + formatCountdown(sessionRemaining()) + '</div></div>';
     }
+    function applyFaceCardFromSession(data) {
+      if (data.face_suit != null && data.face_value != null) {
+        S.runtimeBottomCode = normalizeCardCode(cardCodeFromIdx(data.face_suit, data.face_value)) || '';
+      }
+    }
     function showPerformResult(data) {
+      const main = el('perform-main');
+      if (!main) return;
+      const needsFaceCard = !S.forceBottomCard && data.face_suit == null;
+      if (needsFaceCard) {
+        showPerformFaceCardPrompt(data);
+        return;
+      }
+      applyFaceCardFromSession(data);
       const diff = calcDiff(data.seeker_suit, data.seeker_value, data.hider_suit, data.hider_value);
       const phrase = phraseForDiff(diff);
       const phraseClass = diff < 0 ? 'perform-phrase neg' : 'perform-phrase';
+      main.innerHTML = '<div class="' + phraseClass + '">' + phrase + '</div><div class="perform-sub">' + cardLabel(data.seeker_suit, data.seeker_value) + '</div><div class="perform-sub">' + cardLabel(data.hider_suit, data.hider_value) + '</div>';
+    }
+    function showPerformFaceCardPrompt(data) {
       const main = el('perform-main');
       if (!main) return;
-      main.innerHTML = '<div class="' + phraseClass + '">' + phrase + '</div><div class="perform-sub">' + cardLabel(data.seeker_suit, data.seeker_value) + '</div><div class="perform-sub">' + cardLabel(data.hider_suit, data.hider_value) + '</div>';
+      S._pendingTransmission = data;
+      S._performFace = { suit: null, value: null };
+      renderPerformFaceCard();
+    }
+    function renderPerformFaceCard() {
+      const main = el('perform-main');
+      if (!main) return;
+      const fc = S._performFace || { suit: null, value: null };
+      const preview = (fc.suit == null || fc.value == null) ? 'Select value and suit' : cardLabel(fc.suit, fc.value);
+      const nextDisabled = (fc.suit == null || fc.value == null) ? ' disabled' : '';
+      const valCells = [0,1,2,3,4,5,6,7,8,9].map(i =>
+        '<button class="card-btn' + (fc.value === i ? ' sel' : '') + '" data-fv="' + i + '" style="min-height:44px;font-size:14px;">' + VAL_SYMS[i] + '</button>'
+      ).join('') + '<div></div>' + [10,11,12].map(i =>
+        '<button class="card-btn' + (fc.value === i ? ' sel' : '') + '" data-fv="' + i + '" style="min-height:44px;font-size:14px;">' + VAL_SYMS[i] + '</button>'
+      ).join('') + '<div></div>';
+      const suitBtns = SUIT_NAMES.map((n, i) => {
+        const sym = ['♠','♥','♣','♦'][i];
+        const red = (i === 1 || i === 3) ? ' color:#ff5c5c;' : '';
+        return '<button class="card-btn' + (fc.suit === i ? ' sel' : '') + '" data-fs="' + i + '" style="min-height:48px;font-size:14px;' + red + '"><span style="font-size:20px;display:block;">' + sym + '</span>' + n + '</button>';
+      }).join('');
+      main.innerHTML =
+        '<div style="text-align:center;margin-bottom:10px;font-size:13px;letter-spacing:0.1em;color:var(--muted);">FACE CARD</div>' +
+        '<div class="entry-preview" style="margin-bottom:10px;min-height:48px;display:grid;place-items:center;border:1px solid var(--border-mid);border-radius:12px;background:var(--surface-2);font-size:15px;">' + preview + '</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px;" id="pf-val-grid">' + valCells + '</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;" id="pf-suit-row">' + suitBtns + '</div>' +
+        '<button id="pf-go" class="btn-primary"' + nextDisabled + ' style="width:100%;">Show Result</button>';
+      const vg = el('pf-val-grid');
+      if (vg) vg.onclick = (e) => {
+        const btn = e.target.closest('button[data-fv]');
+        if (!btn) return;
+        S._performFace.value = Number(btn.dataset.fv);
+        renderPerformFaceCard();
+      };
+      const sr = el('pf-suit-row');
+      if (sr) sr.onclick = (e) => {
+        const btn = e.target.closest('button[data-fs]');
+        if (!btn) return;
+        S._performFace.suit = Number(btn.dataset.fs);
+        renderPerformFaceCard();
+      };
+      const go = el('pf-go');
+      if (go) go.onclick = () => {
+        if (S._performFace.suit == null || S._performFace.value == null) return;
+        S.runtimeBottomCode = normalizeCardCode(cardCodeFromIdx(S._performFace.suit, S._performFace.value)) || '';
+        const data = S._pendingTransmission;
+        if (!data) return;
+        const diff = calcDiff(data.seeker_suit, data.seeker_value, data.hider_suit, data.hider_value);
+        const phrase = phraseForDiff(diff);
+        const phraseClass = diff < 0 ? 'perform-phrase neg' : 'perform-phrase';
+        const main = el('perform-main');
+        if (main) main.innerHTML = '<div class="' + phraseClass + '">' + phrase + '</div><div class="perform-sub">' + cardLabel(data.seeker_suit, data.seeker_value) + '</div><div class="perform-sub">' + cardLabel(data.hider_suit, data.hider_value) + '</div>';
+      };
     }
     async function checkSessionForResult() {
       if (!S.session) return;
@@ -3277,7 +3344,7 @@
         '</div>';
       const forcedBottom = normalizeCardCode(S.forcedBottomCode || '') || 'AC';
       const fIdx = cardCodeToIdx(forcedBottom) || { suit: 2, value: 0 };
-      const forceBottomBlock = '<div class="delay-wrap"><div class="active-toggle"><span class="active-label">Force Bottom Card</span><button id="settings-force-bottom" class="switch ' + (S.forceBottomCard ? 'on' : 'off') + '" aria-label="toggle force bottom card"></button><div class="toggle-state ' + (S.forceBottomCard ? 'on' : '') + '">' + (S.forceBottomCard ? 'ON' : 'OFF') + '</div></div><div id="settings-force-bottom-selects"' + (S.forceBottomCard ? '' : ' style="display:none;"') + '><div class="btn-row"><select id="settings-bottom-value" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + VAL_SYMS.map((v, i) => '<option value="' + i + '"' + (fIdx.value === i ? ' selected' : '') + '>' + v + '</option>').join('') + '</select><select id="settings-bottom-suit" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + SUIT_NAMES.map((n, i) => '<option value="' + i + '"' + (fIdx.suit === i ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></div><div class="tiny">When ON, this bottom card is always used to orient the stack.</div></div><div id="settings-force-bottom-note"' + (S.forceBottomCard ? ' style="display:none;"' : '') + ' class="tiny">When OFF, you enter bottom card before seeker/hider input.</div></div>';
+      const forceBottomBlock = '<div class="delay-wrap"><div class="active-toggle"><span class="active-label">Change Face Card</span><button id="settings-force-bottom" class="switch ' + (S.forceBottomCard ? 'on' : 'off') + '" aria-label="toggle force bottom card"></button><div class="toggle-state ' + (S.forceBottomCard ? 'on' : '') + '">' + (S.forceBottomCard ? 'ON' : 'OFF') + '</div></div><div id="settings-force-bottom-selects"' + (S.forceBottomCard ? '' : ' style="display:none;"') + '><div class="btn-row"><select id="settings-bottom-value" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + VAL_SYMS.map((v, i) => '<option value="' + i + '"' + (fIdx.value === i ? ' selected' : '') + '>' + v + '</option>').join('') + '</select><select id="settings-bottom-suit" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + SUIT_NAMES.map((n, i) => '<option value="' + i + '"' + (fIdx.suit === i ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></div><div class="tiny">When ON, this bottom card is always used to orient the stack.</div></div><div id="settings-force-bottom-note"' + (S.forceBottomCard ? ' style="display:none;"' : '') + ' class="tiny">When OFF, you enter bottom card before seeker/hider input.</div></div>';
       return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.tempCode || '----') + '</strong> <span class="muted">(' + formatCountdown(tempCodeRemaining()) + ')</span></p><div><div class="settings-stack-head"><label style="margin:0;">Card Stack</label><button id="settings-stack-info" type="button" class="stack-info-btn" aria-label="Show stack order reference">i</button></div>' + stackToggle + '<div id="settings-stack-order" class="stack-order-ref hidden"></div></div><div id="settings-stebbins-wrap"' + (S.stackType === 'stebbins' ? '' : ' style="display:none;"') + '>' + stebbinsCardBlock + '</div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div>' + forceBottomBlock + '<div class="active-toggle"><span class="active-label">Short Deal</span><button id="settings-short-deal" class="switch ' + (S.shortDeal ? 'on' : 'off') + '" aria-label="toggle short deal"></button><div class="toggle-state settings-short-deal-state ' + (S.shortDeal ? 'on' : '') + '">' + (S.shortDeal ? 'ON' : 'OFF') + '</div></div>' + customPhraseBlock + '<button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
     }
     function bindSettings() {
