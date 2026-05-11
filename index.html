@@ -625,6 +625,7 @@
       font-weight: 700;
       font-size: 14px;
       background: var(--surface-2);
+      color: #4ea8ff;
     }
     .status-inline {
       display: flex;
@@ -1524,7 +1525,7 @@
       return String(Math.floor(Math.random() * 10000)).padStart(4, '0');
     }
     function makePermanentCode() {
-      return String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
+      return String(Math.floor(Math.random() * 1000)).padStart(3, '0');
     }
     function isTempCodeExpired(iso) {
       if (!iso) return true;
@@ -3320,6 +3321,7 @@
       const locked = !!(S.customPhraseLocked && S.customPhraseLocked[pos]);
       const cls = ['phrase-row'];
       if (locked) cls.push('locked');
+      if (pos === 1) { cls.push('ok'); return cls.join(' '); }
       if (!text.trim()) return cls.join(' ');
       cls.push(count === pos ? 'ok' : 'bad');
       return cls.join(' ');
