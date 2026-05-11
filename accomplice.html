@@ -508,7 +508,14 @@
         if (data.expired) return screenExpired();
         const age = Date.now() - new Date(data.created_at).getTime();
         if (age > SESSION_TTL_MS) return screenExpired();
-        S.askFaceCard = data.force_face_card === false;
+        const fcParam = params.get('fc');
+        if (fcParam === '0') {
+          S.askFaceCard = true;
+        } else if (data.force_face_card === false) {
+          S.askFaceCard = true;
+        } else {
+          S.askFaceCard = false;
+        }
         S.step = S.askFaceCard ? 0 : 1;
         renderStep();
       } catch (err) {
