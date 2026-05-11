@@ -9,9 +9,7 @@ create table if not exists public.profiles (
   is_active boolean not null default true,
   short_deal boolean not null default false,
   static_stack boolean not null default false,
-  stack_type text not null default 'stebbins',
-  stebbins_start_suit integer not null default 2,
-  stebbins_start_value integer not null default 0,
+  stack_type text not null default 'mnemonica',
   custom_stack_json jsonb,
   created_at timestamptz not null default now()
 );
@@ -22,9 +20,7 @@ alter table public.profiles add column if not exists temp_code_expires_at timest
 alter table public.profiles add column if not exists is_active boolean not null default true;
 alter table public.profiles add column if not exists short_deal boolean not null default false;
 alter table public.profiles add column if not exists static_stack boolean not null default false;
-alter table public.profiles add column if not exists stack_type text not null default 'stebbins';
-alter table public.profiles add column if not exists stebbins_start_suit integer not null default 2;
-alter table public.profiles add column if not exists stebbins_start_value integer not null default 0;
+alter table public.profiles add column if not exists stack_type text not null default 'mnemonica';
 alter table public.profiles add column if not exists custom_stack_json jsonb;
 create unique index if not exists profiles_temp_code_key on public.profiles(temp_code) where temp_code is not null;
 create unique index if not exists profiles_permanent_code_key on public.profiles(permanent_code) where permanent_code is not null;
@@ -35,15 +31,7 @@ alter table public.profiles
 alter table public.profiles drop constraint if exists profiles_stack_type_chk;
 alter table public.profiles
   add constraint profiles_stack_type_chk
-  check (stack_type in ('stebbins', 'ndo', 'eight_kings', 'mnemonica', 'aronson', 'redford', 'custom'));
-alter table public.profiles drop constraint if exists profiles_stebbins_suit_chk;
-alter table public.profiles
-  add constraint profiles_stebbins_suit_chk
-  check (stebbins_start_suit between 0 and 3);
-alter table public.profiles drop constraint if exists profiles_stebbins_value_chk;
-alter table public.profiles
-  add constraint profiles_stebbins_value_chk
-  check (stebbins_start_value between 0 and 12);
+  check (stack_type in ('mnemonica', 'custom'));
 
 create table if not exists public.sessions (
   id uuid primary key default uuid_generate_v4(),

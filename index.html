@@ -1114,9 +1114,15 @@
     const VAL_NAMES = ['Ace', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Jack', 'Queen', 'King'];
     const VAL_SYMS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
     const SUIT_LETTERS = ['S', 'H', 'C', 'D'];
-    const STACK_TYPES = ['stebbins', 'custom'];
-    const STEBBINS_SUIT_CYCLE = ['C', 'H', 'S', 'D'];
-    const STACK_CODES = {};
+    const STACK_TYPES = ['mnemonica', 'custom'];
+    const MNEMONICA_ORDER = [
+      '4C','2H','7D','3C','4H','6D','AS','5H','9S','2S',
+      'QH','3D','QC','8H','6S','5S','9H','KC','2D','JH',
+      '3S','8S','6H','10C','5D','KD','2C','3H','8D','5C',
+      'KS','JD','8C','10S','KH','JC','7S','10H','AD','4S',
+      '7H','4D','AC','9C','JS','QD','7C','QS','10D','6C',
+      'AH','9D'
+    ];
     const PHRASES = {
       1: 'MIRACLE HIT',
       2: 'AT',
@@ -1477,22 +1483,12 @@
       URL.revokeObjectURL(url);
       return frames;
     }
-    function buildStebbinsMap(startSuitIdx, startValIdx) {
-      const startSuitLetter = SUIT_LETTERS[startSuitIdx];
-      const cycleStart = STEBBINS_SUIT_CYCLE.indexOf(startSuitLetter);
-      const suitStart = cycleStart >= 0 ? cycleStart : 0;
-      const m = {};
-      for (let i = 0; i < 52; i++) {
-        const val = (startValIdx + (i * 3)) % 13;
-        const suitLetter = STEBBINS_SUIT_CYCLE[(suitStart + i) % 4];
-        const suitIdx = idxSuitFromLetter(suitLetter);
-        m[cardCodeFromIdx(suitIdx, val)] = i + 1;
-      }
-      return m;
+    function buildMnemonicaMap() {
+      return buildFixedMap(MNEMONICA_ORDER);
     }
     function getStackMap() {
       let map;
-      if (S.stackType === 'stebbins') map = buildStebbinsMap(S.stebbinsStartSuit, S.stebbinsStartValue);
+      if (S.stackType === 'mnemonica') map = buildMnemonicaMap();
       else map = buildFixedMap(S.customStackCodes || []);
       const top = activeTopCardCode();
       return rotateStackMapToTopCard(map, top);
@@ -1710,7 +1706,7 @@
       return rotated;
     }
     function defaultPositionOneCodeForStack(stackType, customCodes) {
-      if (stackType === 'stebbins') return '';
+      if (stackType === 'mnemonica') return '';
       if (stackType === 'custom') {
         const c = (customCodes && customCodes.length) ? customCodes[0] : '';
         return normalizeCardCode(c) || cardCodeFromIdx(0, 0);
@@ -1727,7 +1723,7 @@
       return out;
     }
     function stackOrderCodesForSettings(stackType, stebSuit, stebVal, customCodes) {
-      if (stackType === 'stebbins') return orderedCodesFromMap(buildStebbinsMap(stebSuit, stebVal));
+      if (stackType === 'mnemonica') return MNEMONICA_ORDER.slice();
       if (stackType === 'custom') {
         const list = (customCodes || []).map((c) => normalizeCardCode(c)).filter(Boolean);
         return list;
@@ -1737,7 +1733,7 @@
     function topCardFromBottomCode(bottomCode) {
       const n = normalizeCardCode(bottomCode || '');
       if (!n) return '';
-      const order = stackOrderCodesForSettings(S.stackType, S.stebbinsStartSuit, S.stebbinsStartValue, S.customStackCodes);
+      const order = stackOrderCodesForSettings(S.stackType, 0, 0, S.customStackCodes);
       if (!order.length) return '';
       const idx = order.indexOf(n);
       if (idx < 0) return '';
@@ -1785,9 +1781,7 @@
       homeTickTimer: null,
       performInputMethod: 'voice',
       shortDeal: true,
-      stackType: 'stebbins',
-      stebbinsStartSuit: 2,
-      stebbinsStartValue: 0,
+      stackType: 'mnemonica',
       topCardCode: '',
       selfEntry: {
         step: 1,
@@ -1987,7 +1981,7 @@
     }
     async function loadProfile() {
       if (!S.profileId) return;
-      const { data, error } = await sb.from('profiles').select('id, email, permanent_code, temp_code, temp_code_expires_at, is_active, short_deal, static_stack, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json').eq('id', S.profileId).maybeSingle();
+      const { data, error } = await sb.from('profiles').select('id, email, permanent_code, temp_code, temp_code_expires_at, is_active, short_deal, static_stack, stack_type, custom_stack_json').eq('id', S.profileId).maybeSingle();
       if (error) throw new Error(mapSetupError(error));
       if (data) {
         S.profileId = data.id || S.profileId;
@@ -1998,9 +1992,7 @@
         S.isActive = data.is_active !== false;
         S.shortDeal = data.short_deal === true;
         S.staticStack = data.static_stack === true;
-        S.stackType = STACK_TYPES.includes(data.stack_type) ? data.stack_type : 'stebbins';
-        S.stebbinsStartSuit = Number.isInteger(data.stebbins_start_suit) ? data.stebbins_start_suit : 2;
-        S.stebbinsStartValue = Number.isInteger(data.stebbins_start_value) ? data.stebbins_start_value : 0;
+        S.stackType = STACK_TYPES.includes(data.stack_type) ? data.stack_type : 'mnemonica';
         S.customStackCodes = Array.isArray(data.custom_stack_json) ? data.custom_stack_json : [];
       }
     }
@@ -2014,9 +2006,7 @@
       S.isActive = data.is_active !== false;
       S.shortDeal = data.short_deal === true;
       S.staticStack = data.static_stack === true;
-      S.stackType = STACK_TYPES.includes(data.stack_type) ? data.stack_type : 'stebbins';
-      S.stebbinsStartSuit = Number.isInteger(data.stebbins_start_suit) ? data.stebbins_start_suit : 2;
-      S.stebbinsStartValue = Number.isInteger(data.stebbins_start_value) ? data.stebbins_start_value : 0;
+      S.stackType = STACK_TYPES.includes(data.stack_type) ? data.stack_type : 'mnemonica';
       S.customStackCodes = Array.isArray(data.custom_stack_json) ? data.custom_stack_json : [];
       storeLastEmail(S.email);
     }
@@ -2024,7 +2014,7 @@
       const normalized = (email || '').trim().toLowerCase();
       const { data, error } = await sb
         .from('profiles')
-        .select('id, email, permanent_code, temp_code, temp_code_expires_at, is_active, short_deal, static_stack, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json')
+        .select('id, email, permanent_code, temp_code, temp_code_expires_at, is_active, short_deal, static_stack, stack_type, custom_stack_json')
         .eq('email', normalized)
         .maybeSingle();
       if (error) throw new Error(mapSetupError(error));
@@ -2035,7 +2025,7 @@
       const { data: created, error: createErr } = await sb
         .from('profiles')
         .insert({ email: normalized, is_active: true })
-        .select('id, email, permanent_code, temp_code, temp_code_expires_at, is_active, short_deal, static_stack, stack_type, stebbins_start_suit, stebbins_start_value, custom_stack_json')
+        .select('id, email, permanent_code, temp_code, temp_code_expires_at, is_active, short_deal, static_stack, stack_type, custom_stack_json')
         .single();
       if (createErr) throw new Error(mapSetupError(createErr));
       assignProfileToState(created, normalized);
@@ -2130,8 +2120,6 @@
       const payload = {
         short_deal: true,
         stack_type: S.stackType,
-        stebbins_start_suit: S.stebbinsStartSuit,
-        stebbins_start_value: S.stebbinsStartValue,
         custom_stack_json: (S.customStackCodes && S.customStackCodes.length) ? S.customStackCodes : null
       };
       const { error } = await sb.from('profiles').update(payload).eq('id', S.profileId);
@@ -3322,10 +3310,8 @@
       renderCustomStackLibrary();
       const stackRef = el('settings-stack-order');
       if (stackRef && !stackRef.classList.contains('hidden')) {
-        const stype = S.stackType || 'stebbins';
-        const stebSuit = Number(el('settings-stebbins-suit') ? el('settings-stebbins-suit').value : S.stebbinsStartSuit);
-        const stebVal = Number(el('settings-stebbins-value') ? el('settings-stebbins-value').value : S.stebbinsStartValue);
-        stackRef.textContent = stackOrderReferenceText(stype, stebSuit, stebVal, settingsAssignedCustomCodes());
+        const stype = S.stackType || 'mnemonica';
+        stackRef.textContent = stackOrderReferenceText(stype, 0, 0, settingsAssignedCustomCodes());
       }
     }
     function phraseRowClassForPosition(pos) {
@@ -3370,7 +3356,7 @@
       row.className = phraseRowClassForPosition(pos);
     }
     function viewSettings() {
-      const stackToggle = '<div class="btn-row"><button id="settings-stack-stebbins" class="' + (S.stackType === 'stebbins' ? 'btn-primary' : 'btn-outline') + '" style="flex:1;">STEBBINS</button><button id="settings-stack-custom" class="' + (S.stackType === 'custom' ? 'btn-primary' : 'btn-outline') + '" style="flex:1;">CUSTOM</button></div>';
+      const stackToggle = '<div class="btn-row"><button id="settings-stack-mnemonica" class="' + (S.stackType === 'mnemonica' ? 'btn-primary' : 'btn-outline') + '" style="flex:1;">MNEMONICA</button><button id="settings-stack-custom" class="' + (S.stackType === 'custom' ? 'btn-primary' : 'btn-outline') + '" style="flex:1;">CUSTOM</button></div>';
       const customBlock = '' +
         '<div class="delay-wrap">' +
           '<div class="custom-stack-head"><span>Custom Stack Builder</span><strong id="settings-custom-count">0/52</strong></div>' +
@@ -3416,11 +3402,9 @@
       const stackRef = el('settings-stack-order');
       const refreshStackRef = () => {
         if (!stackRef) return;
-        const stype = S.stackType || 'stebbins';
-        const stebSuit = Number(el('settings-stebbins-suit') ? el('settings-stebbins-suit').value : S.stebbinsStartSuit);
-        const stebVal = Number(el('settings-stebbins-value') ? el('settings-stebbins-value').value : S.stebbinsStartValue);
+        const stype = S.stackType || 'mnemonica';
         const parsedCustom = settingsAssignedCustomCodes();
-        stackRef.textContent = stackOrderReferenceText(stype, stebSuit, stebVal, parsedCustom);
+        stackRef.textContent = stackOrderReferenceText(stype, 0, 0, parsedCustom);
       };
       const stackInfoBtn = el('settings-stack-info');
       if (stackInfoBtn && stackRef) {
@@ -3431,7 +3415,7 @@
         };
       }
       el('settings-back').onclick = () => {
-        const stackType = S.stackType || 'stebbins';
+        const stackType = S.stackType || 'mnemonica';
         if (!STACK_TYPES.includes(stackType)) {
           showError('Invalid stack selection.');
           return;
@@ -3457,17 +3441,17 @@
         }).catch((err) => showError(err.message || 'Could not save settings.'));
       };
       const setStackType = (type) => {
-        S.stackType = type === 'custom' ? 'custom' : 'stebbins';
+        S.stackType = type === 'custom' ? 'custom' : 'mnemonica';
         const customWrap = el('settings-custom-wrap');
         if (customWrap) customWrap.style.display = S.stackType === 'custom' ? '' : 'none';
-        const stebBtn = el('settings-stack-stebbins');
+        const mnemoBtn = el('settings-stack-mnemonica');
         const customBtn = el('settings-stack-custom');
-        if (stebBtn) stebBtn.className = S.stackType === 'stebbins' ? 'btn-primary' : 'btn-outline';
+        if (mnemoBtn) mnemoBtn.className = S.stackType === 'mnemonica' ? 'btn-primary' : 'btn-outline';
         if (customBtn) customBtn.className = S.stackType === 'custom' ? 'btn-primary' : 'btn-outline';
         refreshStackRef();
       };
-      const stebStackBtn = el('settings-stack-stebbins');
-      if (stebStackBtn) stebStackBtn.onclick = () => setStackType('stebbins');
+      const mnemoStackBtn = el('settings-stack-mnemonica');
+      if (mnemoStackBtn) mnemoStackBtn.onclick = () => setStackType('mnemonica');
       const customStackBtn = el('settings-stack-custom');
       if (customStackBtn) customStackBtn.onclick = () => setStackType('custom');
       const forceBottomBtn = el('settings-force-bottom');
@@ -3487,10 +3471,6 @@
           if (note) note.style.display = next ? 'none' : '';
         };
       }
-      const stebSuitSel = el('settings-stebbins-suit');
-      if (stebSuitSel) stebSuitSel.onchange = refreshStackRef;
-      const stebValSel = el('settings-stebbins-value');
-      if (stebValSel) stebValSel.onchange = refreshStackRef;
       renderCustomStackGrid();
       renderCustomStackLibrary();
       const customGrid = el('settings-custom-grid');
