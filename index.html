@@ -686,9 +686,6 @@
       text-align: center;
       min-height: 14px;
     }
-    .toggle-state.settings-short-deal-state {
-      transform: translateY(1px);
-    }
     .toggle-state.on {
       color: rgba(49,255,112,0.9);
       text-shadow: 0 0 12px rgba(49,255,112,0.45);
@@ -1730,7 +1727,7 @@
       codeRefreshTimer: null,
       homeTickTimer: null,
       performInputMethod: 'voice',
-      shortDeal: false,
+      shortDeal: true,
       stackType: 'stebbins',
       stebbinsStartSuit: 2,
       stebbinsStartValue: 0,
@@ -2071,7 +2068,7 @@
     }
     async function saveProfileStackSettings() {
       const payload = {
-        short_deal: S.shortDeal,
+        short_deal: true,
         stack_type: S.stackType,
         stebbins_start_suit: S.stebbinsStartSuit,
         stebbins_start_value: S.stebbinsStartValue,
@@ -2099,7 +2096,13 @@
       await ensureActiveTempCode();
       const { error: expireErr } = await sb.from('sessions').update({ expired: true }).eq('performer_id', S.profileId).eq('expired', false);
       if (expireErr) throw new Error(mapSetupError(expireErr));
-      const { data, error } = await sb.from('sessions').insert({ performer_id: S.profileId, force_face_card: !!S.forceBottomCard }).select('*').single();
+      let data, error;
+      const row = { performer_id: S.profileId, force_face_card: !!S.forceBottomCard };
+      ({ data, error } = await sb.from('sessions').insert(row).select('*').single());
+      if (error && /force_face_card|schema cache/i.test(error.message || '')) {
+        delete row.force_face_card;
+        ({ data, error } = await sb.from('sessions').insert(row).select('*').single());
+      }
       if (error) throw new Error(mapSetupError(error));
       S.session = data;
       S.performResult = null;
@@ -3345,7 +3348,7 @@
       const forcedBottom = normalizeCardCode(S.forcedBottomCode || '') || 'AC';
       const fIdx = cardCodeToIdx(forcedBottom) || { suit: 2, value: 0 };
       const forceBottomBlock = '<div class="delay-wrap"><div class="active-toggle"><span class="active-label">Change Face Card</span><button id="settings-force-bottom" class="switch ' + (S.forceBottomCard ? 'on' : 'off') + '" aria-label="toggle force bottom card"></button><div class="toggle-state ' + (S.forceBottomCard ? 'on' : '') + '">' + (S.forceBottomCard ? 'ON' : 'OFF') + '</div></div><div id="settings-force-bottom-selects"' + (S.forceBottomCard ? '' : ' style="display:none;"') + '><div class="btn-row"><select id="settings-bottom-value" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + VAL_SYMS.map((v, i) => '<option value="' + i + '"' + (fIdx.value === i ? ' selected' : '') + '>' + v + '</option>').join('') + '</select><select id="settings-bottom-suit" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + SUIT_NAMES.map((n, i) => '<option value="' + i + '"' + (fIdx.suit === i ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></div><div class="tiny">When ON, this bottom card is always used to orient the stack.</div></div><div id="settings-force-bottom-note"' + (S.forceBottomCard ? ' style="display:none;"' : '') + ' class="tiny">When OFF, you enter bottom card before seeker/hider input.</div></div>';
-      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.tempCode || '----') + '</strong> <span class="muted">(' + formatCountdown(tempCodeRemaining()) + ')</span></p><div><div class="settings-stack-head"><label style="margin:0;">Card Stack</label><button id="settings-stack-info" type="button" class="stack-info-btn" aria-label="Show stack order reference">i</button></div>' + stackToggle + '<div id="settings-stack-order" class="stack-order-ref hidden"></div></div><div id="settings-stebbins-wrap"' + (S.stackType === 'stebbins' ? '' : ' style="display:none;"') + '>' + stebbinsCardBlock + '</div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div>' + forceBottomBlock + '<div class="active-toggle"><span class="active-label">Short Deal</span><button id="settings-short-deal" class="switch ' + (S.shortDeal ? 'on' : 'off') + '" aria-label="toggle short deal"></button><div class="toggle-state settings-short-deal-state ' + (S.shortDeal ? 'on' : '') + '">' + (S.shortDeal ? 'ON' : 'OFF') + '</div></div>' + customPhraseBlock + '<button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
+      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.tempCode || '----') + '</strong> <span class="muted">(' + formatCountdown(tempCodeRemaining()) + ')</span></p><div><div class="settings-stack-head"><label style="margin:0;">Card Stack</label><button id="settings-stack-info" type="button" class="stack-info-btn" aria-label="Show stack order reference">i</button></div>' + stackToggle + '<div id="settings-stack-order" class="stack-order-ref hidden"></div></div><div id="settings-stebbins-wrap"' + (S.stackType === 'stebbins' ? '' : ' style="display:none;"') + '>' + stebbinsCardBlock + '</div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div>' + forceBottomBlock + customPhraseBlock + '<button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
     }
     function bindSettings() {
       const baseCustom = Array.isArray(S.customStackCodes) ? S.customStackCodes.map((c) => normalizeCardCode(c)).filter(Boolean) : [];
@@ -3369,7 +3372,6 @@
       }
       el('settings-back').onclick = () => {
         const stackType = S.stackType || 'stebbins';
-        const shortDeal = !!(el('settings-short-deal') && el('settings-short-deal').classList.contains('on'));
         const stebbinsSuit = Number(el('settings-stebbins-suit') ? el('settings-stebbins-suit').value : S.stebbinsStartSuit);
         const stebbinsValue = Number(el('settings-stebbins-value') ? el('settings-stebbins-value').value : S.stebbinsStartValue);
         if (!STACK_TYPES.includes(stackType)) {
@@ -3385,7 +3387,6 @@
           S.customStackCodes = parsed;
         }
         S.stackType = stackType;
-        S.shortDeal = shortDeal;
         S.stebbinsStartSuit = Number.isInteger(stebbinsSuit) ? stebbinsSuit : 2;
         S.stebbinsStartValue = Number.isInteger(stebbinsValue) ? stebbinsValue : 0;
         const forceBottomBtn = el('settings-force-bottom');
@@ -3659,19 +3660,6 @@
             showError('Could not read phrase file.');
           } finally {
             phraseImportFile.value = '';
-          }
-        };
-      }
-      const shortDealBtn = el('settings-short-deal');
-      if (shortDealBtn) {
-        shortDealBtn.onclick = () => {
-          const next = !shortDealBtn.classList.contains('on');
-          shortDealBtn.classList.toggle('on', next);
-          shortDealBtn.classList.toggle('off', !next);
-          const state = shortDealBtn.parentElement ? shortDealBtn.parentElement.querySelector('.toggle-state') : null;
-          if (state) {
-            state.classList.toggle('on', next);
-            state.textContent = next ? 'ON' : 'OFF';
           }
         };
       }
