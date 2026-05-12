@@ -98,7 +98,6 @@
       background: rgba(255,255,255,0.06);
     }
     .slot-btn.filled .slot-label { opacity: 1; }
-    .slot-btn.optional .slot-label { font-style: normal; }
 
     /* Picker overlay */
     .picker-overlay {
@@ -420,8 +419,6 @@
     const S = {
       sessionId: '',
       performerId: '',
-      askFaceCard: false,
-      faceCard: { suit: null, value: null },
       seeker: { suit: null, value: null },
       hider: { suit: null, value: null },
       pickerRole: null,
@@ -468,7 +465,6 @@
     }
 
     function cardForRole(role) {
-      if (role === 'face') return S.faceCard;
       if (role === 'seeker') return S.seeker;
       return S.hider;
     }
@@ -478,7 +474,7 @@
     function slotButton(role, label) {
       const card = cardForRole(role);
       const filled = isFilled(card);
-      const cls = 'slot-btn' + (filled ? ' filled' : '') + (role === 'face' ? ' optional' : '');
+      const cls = 'slot-btn' + (filled ? ' filled' : '');
       const cardText = filled ? shortLabel(card.suit, card.value) : 'Tap to set';
       return '<button class="' + cls + '" data-role="' + role + '">' +
         '<span class="slot-label">' + label + '</span>' +
@@ -492,9 +488,6 @@
       const canTransmit = seekerReady && hiderReady;
 
       let slots = '';
-      if (S.askFaceCard) {
-        slots += slotButton('face', 'FACE');
-      }
       slots += slotButton('seeker', 'SEEKER');
       slots += slotButton('hider', 'HIDER');
 
@@ -525,22 +518,12 @@
             hider_value: S.hider.value,
             submitted_at: new Date().toISOString()
           };
-          if (S.askFaceCard && isFilled(S.faceCard)) {
-            payload.face_suit = S.faceCard.suit;
-            payload.face_value = S.faceCard.value;
-          }
           var result = await sb
             .from('sessions')
             .update(payload)
             .eq('id', S.sessionId)
             .eq('expired', false);
           var error = result.error;
-          if (error && (payload.face_suit != null) && /face_suit|face_value|schema cache/i.test(error.message || '')) {
-            delete payload.face_suit;
-            delete payload.face_value;
-            result = await sb.from('sessions').update(payload).eq('id', S.sessionId).eq('expired', false);
-            error = result.error;
-          }
           if (error) throw error;
           screenSuccess();
         } catch (err) {
@@ -565,7 +548,7 @@
 
     function renderPicker(phase) {
       const role = S.pickerRole;
-      const titles = { face: 'FACE CARD', seeker: 'SEEKER', hider: 'HIDER' };
+      const titles = { seeker: 'SEEKER', hider: 'HIDER' };
       const title = titles[role] || role.toUpperCase();
 
       let body = '';
@@ -689,7 +672,6 @@
         if (data.expired) return screenExpired();
         var age = Date.now() - new Date(data.created_at).getTime();
         if (age > SESSION_TTL_MS) return screenExpired();
-        S.askFaceCard = true;
         renderHub();
       } catch (err) {
         screenError('Error', err.message || 'Could not load session.');

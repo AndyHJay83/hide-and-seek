@@ -1495,11 +1495,8 @@
       return buildFixedMap(MNEMONICA_ORDER);
     }
     function getStackMap() {
-      let map;
-      if (S.stackType === 'mnemonica') map = buildMnemonicaMap();
-      else map = buildFixedMap(S.customStackCodes || []);
-      const top = activeTopCardCode();
-      return rotateStackMapToTopCard(map, top);
+      if (S.stackType === 'mnemonica') return buildMnemonicaMap();
+      return buildFixedMap(S.customStackCodes || []);
     }
     function stackCardPos(suit, val) {
       const code = cardCodeFromIdx(suit, val);
@@ -1522,9 +1519,6 @@
     const TEMP_CODE_TTL_MS = 60 * 60 * 1000;
     const SESSION_TTL_MS = 60 * 60 * 1000;
     const TEMP_CODE_REFRESH_MS = 30000;
-    const LOCAL_TOP_CARD_CODE_KEY = 'has.top_card_code';
-    const LOCAL_FORCE_BOTTOM_KEY = 'has.force_bottom_card';
-    const LOCAL_FORCED_BOTTOM_CODE_KEY = 'has.forced_bottom_code';
     const LOCAL_CUSTOM_STACK_LIBRARY_KEY = 'has.custom_stack_library_v1';
     const LOCAL_CUSTOM_PHRASES_KEY = 'has.custom_phrases_v1';
 
@@ -1554,9 +1548,6 @@
       if (/column .*permanent_code.* does not exist/i.test(msg)) {
         return 'Database not migrated yet: run supabase-setup.sql (or fix-permanent-code-column.sql) in Supabase SQL Editor.';
       }
-      if (/column .*(face_suit|face_value|force_face_card).* does not exist/i.test(msg)) {
-        return 'Database not migrated yet: run fix-face-card-columns.sql in Supabase SQL Editor.';
-      }
       return msg || 'Something went wrong.';
     }
     function logoMarkup(compact) {
@@ -1568,31 +1559,6 @@
         '<div class="amp-row"><div class="rule-halo"></div><div class="rule-left"></div><div class="amp-char">&amp;</div><div class="rule-right"></div></div>' +
         '<div class="word-seek">SEEK</div>' +
       '</div>';
-    }
-    function readTopCardCode() {
-      try { return normalizeCardCode(localStorage.getItem(LOCAL_TOP_CARD_CODE_KEY) || '') || ''; } catch (_) { return ''; }
-    }
-    function writeTopCardCode(code) {
-      try {
-        if (!code) localStorage.removeItem(LOCAL_TOP_CARD_CODE_KEY);
-        else localStorage.setItem(LOCAL_TOP_CARD_CODE_KEY, code);
-      } catch (_) {}
-    }
-    function readForceBottomCard() {
-      try { return localStorage.getItem(LOCAL_FORCE_BOTTOM_KEY) !== '0'; } catch (_) { return true; }
-    }
-    function writeForceBottomCard(on) {
-      try { localStorage.setItem(LOCAL_FORCE_BOTTOM_KEY, on ? '1' : '0'); } catch (_) {}
-    }
-    function readForcedBottomCode() {
-      try { return normalizeCardCode(localStorage.getItem(LOCAL_FORCED_BOTTOM_CODE_KEY) || '') || ''; } catch (_) { return ''; }
-    }
-    function writeForcedBottomCode(code) {
-      try {
-        const n = normalizeCardCode(code || '') || '';
-        if (!n) localStorage.removeItem(LOCAL_FORCED_BOTTOM_CODE_KEY);
-        else localStorage.setItem(LOCAL_FORCED_BOTTOM_CODE_KEY, n);
-      } catch (_) {}
     }
     function readCustomStackLibrary() {
       try {
@@ -1701,26 +1667,6 @@
       if (!S.tempCodeExpiresAt) return 0;
       return Math.max(0, new Date(S.tempCodeExpiresAt).getTime() - Date.now());
     }
-    function rotateStackMapToTopCard(map, topCardCode) {
-      const top = normalizeCardCode(topCardCode || '');
-      if (!top) return map;
-      const topPos = map[top];
-      if (typeof topPos !== 'number' || topPos <= 1) return map;
-      const rotated = {};
-      Object.keys(map).forEach((code) => {
-        const pos = map[code];
-        rotated[code] = ((pos - topPos + 52) % 52) + 1;
-      });
-      return rotated;
-    }
-    function defaultPositionOneCodeForStack(stackType, customCodes) {
-      if (stackType === 'mnemonica') return '';
-      if (stackType === 'custom') {
-        const c = (customCodes && customCodes.length) ? customCodes[0] : '';
-        return normalizeCardCode(c) || cardCodeFromIdx(0, 0);
-      }
-      return cardCodeFromIdx(0, 0);
-    }
     function orderedCodesFromMap(map) {
       const out = new Array(52).fill('');
       Object.keys(map || {}).forEach((code) => {
@@ -1738,36 +1684,10 @@
       }
       return [];
     }
-    function topCardFromBottomCode(bottomCode) {
-      const n = normalizeCardCode(bottomCode || '');
-      if (!n) return '';
-      const order = stackOrderCodesForSettings(S.stackType, 0, 0, S.customStackCodes);
-      if (!order.length) return '';
-      const idx = order.indexOf(n);
-      if (idx < 0) return '';
-      return order[(idx + 1) % order.length] || '';
-    }
-    function activeTopCardCode() {
-      if (S.forceBottomCard) return topCardFromBottomCode(S.forcedBottomCode);
-      return topCardFromBottomCode(S.runtimeBottomCode);
-    }
     function stackOrderReferenceText(stackType, stebSuit, stebVal, customCodes) {
       const codes = stackOrderCodesForSettings(stackType, stebSuit, stebVal, customCodes);
       if (!codes.length) return 'No cards configured yet.';
       return codes.map((code, idx) => String(idx + 1).padStart(2, '0') + ': ' + code).join('   ');
-    }
-    function topCardIndicesForSettings(stackType, topCode, customCodes) {
-      const def = defaultPositionOneCodeForStack(stackType, customCodes);
-      const use = normalizeCardCode(topCode || '') || def;
-      const n = normalizeCardCode(use);
-      if (!n) return { suit: 0, value: 0 };
-      const suit = idxSuitFromLetter(n.slice(-1));
-      const valSym = n.slice(0, -1);
-      const value = VAL_SYMS.indexOf(valSym);
-      return {
-        suit: suit >= 0 ? suit : 0,
-        value: value >= 0 ? value : 0
-      };
     }
     function phraseForDiff(diff) {
       const abs = Math.abs(diff);
@@ -1790,10 +1710,8 @@
       performInputMethod: 'voice',
       shortDeal: true,
       stackType: 'mnemonica',
-      topCardCode: '',
       selfEntry: {
         step: 1,
-        bottom: { suit: null, value: null },
         seeker: { suit: null, value: null },
         hider: { suit: null, value: null },
         result: null
@@ -1808,9 +1726,6 @@
       customPhraseSaved: {},
       customPhraseDraft: {},
       customPhraseLocked: {},
-      forceBottomCard: false,
-      forcedBottomCode: '',
-      runtimeBottomCode: '',
       recoveryMode: false,
       cameraStream: null,
       cameraParsedCodes: [],
@@ -2592,81 +2507,13 @@
       if (!S.session) return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack center"><h2>No Active Session</h2><p class="muted">Create one from ACCOMPLICE first.</p><button id="perform-back" class="btn-outline btn-full">Back Home</button></div>';
       return '<div class="perform-screen"><button id="perform-exit" class="perform-exit">EXIT</button><div id="perform-main"><div class="perform-awaiting">AWAITING TRANSMISSION</div></div><div id="perform-timer" class="perform-timer">' + formatCountdown(sessionRemaining()) + '</div></div>';
     }
-    function applyFaceCardFromSession(data) {
-      if (data.face_suit != null && data.face_value != null) {
-        S.runtimeBottomCode = normalizeCardCode(cardCodeFromIdx(data.face_suit, data.face_value)) || '';
-      }
-    }
     function showPerformResult(data) {
       const main = el('perform-main');
       if (!main) return;
-      const sessionKnowsFaceCard = data.hasOwnProperty('force_face_card');
-      const accompliceSkipped = !S.forceBottomCard && sessionKnowsFaceCard && data.force_face_card === false && data.face_suit == null;
-      if (accompliceSkipped) {
-        showPerformFaceCardPrompt(data);
-        return;
-      }
-      applyFaceCardFromSession(data);
       const diff = calcDiff(data.seeker_suit, data.seeker_value, data.hider_suit, data.hider_value);
       const phrase = phraseForDiff(diff);
       const phraseClass = diff < 0 ? 'perform-phrase neg' : 'perform-phrase';
       main.innerHTML = '<div class="' + phraseClass + '">' + phrase + '</div>';
-    }
-    function showPerformFaceCardPrompt(data) {
-      const main = el('perform-main');
-      if (!main) return;
-      S._pendingTransmission = data;
-      S._performFace = { suit: null, value: null };
-      renderPerformFaceCard();
-    }
-    function renderPerformFaceCard() {
-      const main = el('perform-main');
-      if (!main) return;
-      const fc = S._performFace || { suit: null, value: null };
-      const preview = (fc.suit == null || fc.value == null) ? 'Select value and suit' : cardLabel(fc.suit, fc.value);
-      const nextDisabled = (fc.suit == null || fc.value == null) ? ' disabled' : '';
-      const valCells = [0,1,2,3,4,5,6,7,8,9].map(i =>
-        '<button class="card-btn' + (fc.value === i ? ' sel' : '') + '" data-fv="' + i + '" style="min-height:44px;font-size:14px;">' + VAL_SYMS[i] + '</button>'
-      ).join('') + '<div></div>' + [10,11,12].map(i =>
-        '<button class="card-btn' + (fc.value === i ? ' sel' : '') + '" data-fv="' + i + '" style="min-height:44px;font-size:14px;">' + VAL_SYMS[i] + '</button>'
-      ).join('') + '<div></div>';
-      const suitBtns = SUIT_NAMES.map((n, i) => {
-        const sym = ['♠','♥','♣','♦'][i];
-        const red = (i === 1 || i === 3) ? ' color:#ff5c5c;' : '';
-        return '<button class="card-btn' + (fc.suit === i ? ' sel' : '') + '" data-fs="' + i + '" style="min-height:48px;font-size:14px;' + red + '"><span style="font-size:20px;display:block;">' + sym + '</span>' + n + '</button>';
-      }).join('');
-      main.innerHTML =
-        '<div style="text-align:center;margin-bottom:10px;font-size:13px;letter-spacing:0.1em;color:var(--muted);">FACE CARD</div>' +
-        '<div class="entry-preview" style="margin-bottom:10px;min-height:48px;display:grid;place-items:center;border:1px solid var(--border-mid);border-radius:12px;background:var(--surface-2);font-size:15px;">' + preview + '</div>' +
-        '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px;" id="pf-val-grid">' + valCells + '</div>' +
-        '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;" id="pf-suit-row">' + suitBtns + '</div>' +
-        '<button id="pf-go" class="btn-primary"' + nextDisabled + ' style="width:100%;">Show Result</button>';
-      const vg = el('pf-val-grid');
-      if (vg) vg.onclick = (e) => {
-        const btn = e.target.closest('button[data-fv]');
-        if (!btn) return;
-        S._performFace.value = Number(btn.dataset.fv);
-        renderPerformFaceCard();
-      };
-      const sr = el('pf-suit-row');
-      if (sr) sr.onclick = (e) => {
-        const btn = e.target.closest('button[data-fs]');
-        if (!btn) return;
-        S._performFace.suit = Number(btn.dataset.fs);
-        renderPerformFaceCard();
-      };
-      const go = el('pf-go');
-      if (go) go.onclick = () => {
-        if (S._performFace.suit == null || S._performFace.value == null) return;
-        S.runtimeBottomCode = normalizeCardCode(cardCodeFromIdx(S._performFace.suit, S._performFace.value)) || '';
-        const data = S._pendingTransmission;
-        if (!data) return;
-        const diff = calcDiff(data.seeker_suit, data.seeker_value, data.hider_suit, data.hider_value);
-        const phrase = phraseForDiff(diff);
-        const phraseClass = diff < 0 ? 'perform-phrase neg' : 'perform-phrase';
-        const main = el('perform-main');
-        if (main) main.innerHTML = '<div class="' + phraseClass + '">' + phrase + '</div>';
-      };
     }
     async function checkSessionForResult() {
       if (!S.session) return;
@@ -2756,36 +2603,6 @@
         '<button id="self-next" class="btn-primary btn-full" ' + nextDisabled + '>' + (isSeeker ? 'Confirm Seeker Card' : 'Next: Set') + '</button>' +
         '<button id="self-back-home" class="btn-outline btn-full">Back Home</button>';
     }
-    function buildSelfBottomStep() {
-      const card = S.selfEntry.bottom || { suit: null, value: null };
-      const preview = (card.suit == null || card.value == null) ? '' : cardLabel(card.suit, card.value);
-      const nextDisabled = card.suit == null || card.value == null ? 'disabled' : '';
-      const valCells = [
-        { type: 'btn', idx: 0 }, { type: 'btn', idx: 1 }, { type: 'btn', idx: 2 }, { type: 'btn', idx: 3 }, { type: 'btn', idx: 4 },
-        { type: 'btn', idx: 5 }, { type: 'btn', idx: 6 }, { type: 'btn', idx: 7 }, { type: 'btn', idx: 8 }, { type: 'btn', idx: 9 },
-        { type: 'spacer' }, { type: 'btn', idx: 10 }, { type: 'btn', idx: 11 }, { type: 'btn', idx: 12 }, { type: 'spacer' }
-      ];
-      return '' +
-        '<h2 class="center">BOTTOM CARD</h2>' +
-        '<div class="entry-preview">' + preview + '</div>' +
-        '<div id="self-val-grid" class="entry-val-grid">' +
-        valCells.map((cell) => {
-          if (cell.type === 'spacer') return '<div aria-hidden="true"></div>';
-          const i = cell.idx;
-          const sel = card.value === i ? ' sel' : '';
-          return '<button class="entry-card-btn' + sel + '" data-v="' + i + '">' + VAL_SYMS[i] + '</button>';
-        }).join('') +
-        '</div>' +
-        '<div id="self-suit-row" class="entry-suit-row">' +
-        SUIT_NAMES.map((n, i) => {
-          const sel = card.suit === i ? ' sel' : '';
-          const red = (i === 1 || i === 3) ? ' red' : '';
-          return '<button class="entry-suit-btn' + sel + red + '" data-s="' + i + '"><span>' + ['♠','♥','♣','♦'][i] + '</span><span>' + n + '</span></button>';
-        }).join('') +
-        '</div>' +
-        '<button id="self-next" class="btn-primary btn-full" ' + nextDisabled + '>Next: Seeker</button>' +
-        '<button id="self-back-home" class="btn-outline btn-full">Back Home</button>';
-    }
     function buildSelfConfirm() {
       return '' +
         buildSelfStepDots(3) +
@@ -2812,8 +2629,6 @@
       if (!root) return;
       if (S.selfEntry.result) {
         root.innerHTML = buildSelfPeek();
-      } else if (!S.forceBottomCard && !S.runtimeBottomCode) {
-        root.innerHTML = buildSelfBottomStep();
       } else if (S.selfEntry.step === 3) {
         root.innerHTML = buildSelfConfirm();
       } else if (S.selfEntry.step === 2) {
@@ -2829,7 +2644,7 @@
         valGrid.onclick = (e) => {
           const b = e.target.closest('button[data-v]');
           if (!b) return;
-          const role = (!S.forceBottomCard && !S.runtimeBottomCode) ? 'bottom' : (S.selfEntry.step === 1 ? 'seeker' : 'hider');
+          const role = S.selfEntry.step === 1 ? 'seeker' : 'hider';
           S.selfEntry[role].value = Number(b.dataset.v);
           renderSelfKeypadBody();
         };
@@ -2839,7 +2654,7 @@
         suitRow.onclick = (e) => {
           const b = e.target.closest('button[data-s]');
           if (!b) return;
-          const role = (!S.forceBottomCard && !S.runtimeBottomCode) ? 'bottom' : (S.selfEntry.step === 1 ? 'seeker' : 'hider');
+          const role = S.selfEntry.step === 1 ? 'seeker' : 'hider';
           S.selfEntry[role].suit = Number(b.dataset.s);
           renderSelfKeypadBody();
         };
@@ -2847,14 +2662,6 @@
       const next = el('self-next');
       if (next) {
         next.onclick = () => {
-          if (!S.forceBottomCard && !S.runtimeBottomCode) {
-            const btm = S.selfEntry.bottom || {};
-            if (btm.suit == null || btm.value == null) return;
-            S.runtimeBottomCode = normalizeCardCode(cardCodeFromIdx(btm.suit, btm.value)) || '';
-            S.selfEntry.step = 1;
-            renderSelfKeypadBody();
-            return;
-          }
           const role = S.selfEntry.step === 1 ? 'seeker' : 'hider';
           const c = S.selfEntry[role];
           if (c.suit == null || c.value == null) return;
@@ -2875,8 +2682,7 @@
       };
       const again = el('self-again');
       if (again) again.onclick = () => {
-        S.runtimeBottomCode = '';
-        S.selfEntry = { step: 1, bottom: { suit: null, value: null }, seeker: { suit: null, value: null }, hider: { suit: null, value: null }, result: null };
+        S.selfEntry = { step: 1, seeker: { suit: null, value: null }, hider: { suit: null, value: null }, result: null };
         renderSelfKeypadBody();
       };
     }
@@ -3693,10 +3499,6 @@
         if (S.view === 'welcome') render();
       });
       S.loginEmail = readLastEmail();
-      S.topCardCode = readTopCardCode();
-      S.forceBottomCard = false;
-      S.forcedBottomCode = readForcedBottomCode() || 'AC';
-      S.runtimeBottomCode = '';
       loadCustomPhraseConfigIntoState();
       S.recoveryMode = inRecoveryFlow();
       if (S.recoveryMode) {
