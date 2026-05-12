@@ -145,19 +145,11 @@
       display: grid;
       place-items: center;
     }
-    .picker-step-label {
-      text-align: center;
-      font-size: 13px;
-      color: var(--muted);
-      margin-bottom: 10px;
-      letter-spacing: 0.04em;
-    }
-
     .val-grid {
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 8px;
-      margin-bottom: 12px;
+      margin-bottom: 16px;
     }
     .card-btn {
       border: 1px solid var(--border-mid);
@@ -422,7 +414,8 @@
       seeker: { suit: null, value: null },
       hider: { suit: null, value: null },
       pickerRole: null,
-      pickerValue: null
+      pickerValue: null,
+      pickerSuit: null
     };
 
     function el(id) { return document.getElementById(id); }
@@ -475,7 +468,7 @@
       const card = cardForRole(role);
       const filled = isFilled(card);
       const cls = 'slot-btn' + (filled ? ' filled' : '');
-      const cardText = filled ? shortLabel(card.suit, card.value) : 'Tap to set';
+      const cardText = filled ? shortLabel(card.suit, card.value) : 'Set';
       return '<button class="' + cls + '" data-role="' + role + '">' +
         '<span class="slot-label">' + label + '</span>' +
         '<span class="slot-card">' + cardText + '</span>' +
@@ -536,29 +529,32 @@
 
     function openPicker(role) {
       S.pickerRole = role;
-      S.pickerValue = null;
-      renderPicker('value');
+      S.pickerValue = cardForRole(role).value;
+      S.pickerSuit = cardForRole(role).suit;
+      renderPicker();
     }
 
     function closePicker() {
       S.pickerRole = null;
       S.pickerValue = null;
+      S.pickerSuit = null;
       el('picker-root').innerHTML = '';
     }
 
-    function renderPicker(phase) {
-      const role = S.pickerRole;
-      const titles = { seeker: 'SEEKER', hider: 'HIDER' };
-      const title = titles[role] || role.toUpperCase();
-
-      let body = '';
-      if (phase === 'value') {
-        body += '<div class="picker-step-label">Select value</div>';
-        body += '<div class="val-grid" id="picker-vals">' + pickerValGrid() + '</div>';
-      } else {
-        body += '<div class="picker-step-label">Select suit</div>';
-        body += '<div class="suit-row" id="picker-suits">' + pickerSuitRow() + '</div>';
+    function tryAutoClose() {
+      if (S.pickerValue != null && S.pickerSuit != null) {
+        var card = cardForRole(S.pickerRole);
+        card.value = S.pickerValue;
+        card.suit = S.pickerSuit;
+        closePicker();
+        renderHub();
       }
+    }
+
+    function renderPicker() {
+      var role = S.pickerRole;
+      var titles = { seeker: 'SEEKER', hider: 'HIDER' };
+      var title = titles[role] || role.toUpperCase();
 
       el('picker-root').innerHTML =
         '<div class="picker-overlay" id="picker-overlay">' +
@@ -567,11 +563,12 @@
         '<span class="picker-title">' + title + '</span>' +
         '<button class="picker-close" id="picker-close-btn">✕</button>' +
         '</div>' +
-        body +
+        '<div class="val-grid" id="picker-vals">' + pickerValGrid() + '</div>' +
+        '<div class="suit-row" id="picker-suits">' + pickerSuitRow() + '</div>' +
         '</div>' +
         '</div>';
 
-      bindPicker(phase);
+      bindPicker();
     }
 
     function pickerValGrid() {
@@ -589,36 +586,33 @@
 
     function pickerSuitRow() {
       return SUITS.map(function(s) {
+        var sel = S.pickerSuit === s.idx ? ' sel' : '';
         var red = (s.idx === 1 || s.idx === 3) ? ' red' : '';
-        return '<button class="suit-btn' + red + '" data-ps="' + s.idx + '"><span>' + s.sym + '</span><span>' + s.name + '</span></button>';
+        return '<button class="suit-btn' + sel + red + '" data-ps="' + s.idx + '"><span>' + s.sym + '</span><span>' + s.name + '</span></button>';
       }).join('');
     }
 
-    function bindPicker(phase) {
+    function bindPicker() {
       el('picker-close-btn').onclick = closePicker;
       el('picker-overlay').onclick = function(e) {
         if (e.target === el('picker-overlay')) closePicker();
       };
 
-      if (phase === 'value') {
-        el('picker-vals').onclick = function(e) {
-          var btn = e.target.closest('button[data-pv]');
-          if (!btn) return;
-          S.pickerValue = Number(btn.dataset.pv);
-          renderPicker('suit');
-        };
-      } else {
-        el('picker-suits').onclick = function(e) {
-          var btn = e.target.closest('button[data-ps]');
-          if (!btn) return;
-          var suitIdx = Number(btn.dataset.ps);
-          var card = cardForRole(S.pickerRole);
-          card.value = S.pickerValue;
-          card.suit = suitIdx;
-          closePicker();
-          renderHub();
-        };
-      }
+      el('picker-vals').onclick = function(e) {
+        var btn = e.target.closest('button[data-pv]');
+        if (!btn) return;
+        S.pickerValue = Number(btn.dataset.pv);
+        renderPicker();
+        tryAutoClose();
+      };
+
+      el('picker-suits').onclick = function(e) {
+        var btn = e.target.closest('button[data-ps]');
+        if (!btn) return;
+        S.pickerSuit = Number(btn.dataset.ps);
+        renderPicker();
+        tryAutoClose();
+      };
     }
 
 
