@@ -2603,7 +2603,7 @@
       const diff = calcDiff(data.seeker_suit, data.seeker_value, data.hider_suit, data.hider_value);
       const phrase = phraseForDiff(diff);
       const phraseClass = diff < 0 ? 'perform-phrase neg' : 'perform-phrase';
-      main.innerHTML = '<div class="' + phraseClass + '">' + phrase + '</div><div class="perform-sub">' + cardLabel(data.seeker_suit, data.seeker_value) + '</div><div class="perform-sub">' + cardLabel(data.hider_suit, data.hider_value) + '</div>';
+      main.innerHTML = '<div class="' + phraseClass + '">' + phrase + '</div>';
     }
     function showPerformFaceCardPrompt(data) {
       const main = el('perform-main');
@@ -2658,7 +2658,7 @@
         const phrase = phraseForDiff(diff);
         const phraseClass = diff < 0 ? 'perform-phrase neg' : 'perform-phrase';
         const main = el('perform-main');
-        if (main) main.innerHTML = '<div class="' + phraseClass + '">' + phrase + '</div><div class="perform-sub">' + cardLabel(data.seeker_suit, data.seeker_value) + '</div><div class="perform-sub">' + cardLabel(data.hider_suit, data.hider_value) + '</div>';
+        if (main) main.innerHTML = '<div class="' + phraseClass + '">' + phrase + '</div>';
       };
     }
     async function checkSessionForResult() {

@@ -354,9 +354,40 @@
       document.querySelectorAll('.slot-btn[data-role]').forEach(function(btn) {
         btn.onclick = function() { openPicker(btn.dataset.role); };
       });
-      el('hub-transmit').onclick = function() {
+      el('hub-transmit').onclick = async function() {
         if (!isFilled(S.seeker) || !isFilled(S.hider)) return;
-        renderConfirm();
+        var btn = el('hub-transmit');
+        btn.disabled = true;
+        btn.textContent = 'Transmitting...';
+        try {
+          var payload = {
+            seeker_suit: S.seeker.suit,
+            seeker_value: S.seeker.value,
+            hider_suit: S.hider.suit,
+            hider_value: S.hider.value,
+            submitted_at: new Date().toISOString()
+          };
+          if (S.askFaceCard && isFilled(S.faceCard)) {
+            payload.face_suit = S.faceCard.suit;
+            payload.face_value = S.faceCard.value;
+          }
+          var result = await sb
+            .from('sessions')
+            .update(payload)
+            .eq('id', S.sessionId)
+            .eq('expired', false);
+          var error = result.error;
+          if (error && (payload.face_suit != null) && /face_suit|face_value|schema cache/i.test(error.message || '')) {
+            delete payload.face_suit;
+            delete payload.face_value;
+            result = await sb.from('sessions').update(payload).eq('id', S.sessionId).eq('expired', false);
+            error = result.error;
+          }
+          if (error) throw error;
+          screenSuccess();
+        } catch (err) {
+          screenError('Transmit Failed', err.message || 'Could not submit this session.');
+        }
       };
     }
 
@@ -449,69 +480,6 @@
       }
     }
 
-    /* ── Confirm screen ── */
-
-    function renderConfirm() {
-      var faceRow = '';
-      if (S.askFaceCard) {
-        if (isFilled(S.faceCard)) {
-          faceRow = '<div class="preview">FACE: ' + cardLabel(S.faceCard.suit, S.faceCard.value) + '</div>';
-        } else {
-          faceRow = '<div class="preview" style="color:var(--muted);">FACE: Skipped</div>';
-        }
-      }
-      setHTML(
-        '<div class="logo">HIDE & SEEK</div>' +
-        '<div class="panel">' +
-        '<h2 class="center" style="margin-bottom:12px;">Confirm Transmission</h2>' +
-        faceRow +
-        '<div class="preview">SEEKER: ' + cardLabel(S.seeker.suit, S.seeker.value) + '</div>' +
-        '<div class="preview">HIDER: ' + cardLabel(S.hider.suit, S.hider.value) + '</div>' +
-        '<button id="transmit-btn" class="btn-primary">Transmit</button>' +
-        '<button id="edit-btn" class="btn-outline">Edit</button>' +
-        '</div>'
-      );
-      bindConfirm();
-    }
-
-    function bindConfirm() {
-      el('edit-btn').onclick = renderHub;
-
-      el('transmit-btn').onclick = async function() {
-        var btn = el('transmit-btn');
-        btn.disabled = true;
-        btn.textContent = 'Transmitting...';
-        try {
-          var payload = {
-            seeker_suit: S.seeker.suit,
-            seeker_value: S.seeker.value,
-            hider_suit: S.hider.suit,
-            hider_value: S.hider.value,
-            submitted_at: new Date().toISOString()
-          };
-          if (S.askFaceCard && isFilled(S.faceCard)) {
-            payload.face_suit = S.faceCard.suit;
-            payload.face_value = S.faceCard.value;
-          }
-          var result = await sb
-            .from('sessions')
-            .update(payload)
-            .eq('id', S.sessionId)
-            .eq('expired', false);
-          var error = result.error;
-          if (error && (payload.face_suit != null) && /face_suit|face_value|schema cache/i.test(error.message || '')) {
-            delete payload.face_suit;
-            delete payload.face_value;
-            result = await sb.from('sessions').update(payload).eq('id', S.sessionId).eq('expired', false);
-            error = result.error;
-          }
-          if (error) throw error;
-          screenSuccess();
-        } catch (err) {
-          screenError('Transmit Failed', err.message || 'Could not submit this session.');
-        }
-      };
-    }
 
     /* ── Init ── */
 
