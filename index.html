@@ -745,11 +745,19 @@
       color: rgba(49,255,112,0.9);
       text-shadow: 0 0 12px rgba(49,255,112,0.45);
     }
+    .app.view-home {
+      height: 100vh;
+      height: 100dvh;
+      min-height: 0;
+      overflow: hidden;
+    }
     .home-shell {
       background: transparent;
       border: 0;
       box-shadow: none;
       padding: 0;
+      flex: 1;
+      overflow: hidden;
     }
     .inline-accomplice {
       border: 1px solid var(--border-mid);
@@ -3667,6 +3675,7 @@
 
     async function render() {
       const app = el('app'); if (!app) return;
+      app.classList.toggle('view-home', S.view === 'home');
       if (S.view === 'welcome') { app.innerHTML = viewWelcome(); bindWelcome(); return; }
       if (S.view === 'home') { app.innerHTML = viewHome(); bindHome(); return; }
       if (S.view === 'accomplice-send') { app.innerHTML = viewAccompliceSend(); await bindAccompliceSend(); return; }
