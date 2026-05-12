@@ -3380,10 +3380,8 @@
         '</div>';
       const customPhraseBlock = '' +
         '<div class="phrase-wrap">' +
-          '<div class="active-toggle"><span class="active-label">Use Custom Phrases</span><button id="settings-custom-phrases-toggle" class="switch ' + (S.customPhrasesEnabled ? 'on' : 'off') + '" aria-label="toggle custom phrases"></button></div>' +
+          '<div class="active-toggle"><span class="active-label">Use Custom Phrases</span><button id="settings-custom-phrases-toggle" class="switch ' + (S.customPhrasesEnabled ? 'on' : 'off') + '" aria-label="toggle custom phrases"></button><div class="toggle-state ' + (S.customPhrasesEnabled ? 'on' : '') + '">' + (S.customPhrasesEnabled ? 'ON' : 'OFF') + '</div></div>' +
           '<div id="settings-phrase-editor"' + (S.customPhrasesEnabled ? '' : ' style="display:none;"') + '>' +
-            '<div class="btn-row"><button id="settings-phrases-import" type="button" class="btn-outline btn-full">Import Phrases .txt</button></div>' +
-            '<input id="settings-phrases-import-file" type="file" accept=".txt,text/plain" style="display:none;">' +
             '<div id="settings-phrase-grid" class="phrase-grid"></div>' +
           '</div>' +
         '</div>';
@@ -3586,6 +3584,11 @@
           S.customPhrasesEnabled = next;
           phraseToggle.classList.toggle('on', next);
           phraseToggle.classList.toggle('off', !next);
+          const state = phraseToggle.parentElement ? phraseToggle.parentElement.querySelector('.toggle-state') : null;
+          if (state) {
+            state.classList.toggle('on', next);
+            state.textContent = next ? 'ON' : 'OFF';
+          }
           const editor = el('settings-phrase-editor');
           if (editor) editor.style.display = next ? '' : 'none';
           writeCustomPhraseConfig();
@@ -3632,34 +3635,6 @@
           showToast('Phrase ' + pos + ' saved');
           renderCustomPhraseRows();
         });
-      }
-      const phraseImportBtn = el('settings-phrases-import');
-      const phraseImportFile = el('settings-phrases-import-file');
-      if (phraseImportBtn && phraseImportFile) {
-        phraseImportBtn.onclick = () => phraseImportFile.click();
-        phraseImportFile.onchange = async () => {
-          const file = phraseImportFile.files && phraseImportFile.files[0];
-          if (!file) return;
-          try {
-            const txt = await file.text();
-            const lines = String(txt)
-              .split(/\r?\n/)
-              .map((line) => line.trim())
-              .filter((line) => line.length > 0);
-            for (let i = 1; i <= 52; i++) {
-              const phrase = String(lines[i - 1] || '');
-              S.customPhraseDraft[i] = phrase;
-              S.customPhraseLocked[i] = false;
-            }
-            clearError();
-            renderCustomPhraseRows();
-            showToast('Phrases imported');
-          } catch (_) {
-            showError('Could not read phrase file.');
-          } finally {
-            phraseImportFile.value = '';
-          }
-        };
       }
       refreshStackRef();
       el('logout-btn').onclick = async () => {
