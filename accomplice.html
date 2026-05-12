@@ -96,7 +96,7 @@
       background: rgba(255,255,255,0.06);
     }
     .slot-btn.filled .slot-label { opacity: 1; }
-    .slot-btn.optional .slot-label { font-style: italic; }
+    .slot-btn.optional .slot-label { font-style: normal; }
 
     /* Picker overlay */
     .picker-overlay {
@@ -293,20 +293,11 @@
 
     function screenSuccess() {
       setHTML(
-        '<div class="logo">HIDE & SEEK</div>' +
-        '<div class="panel center">' +
-        '<div style="font-size:40px;margin-bottom:6px;">✦</div>' +
+        '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">' +
+        '<div class="logo" style="margin-bottom:24px;">HIDE & SEEK</div>' +
         '<h2>Transmitted</h2>' +
-        '<p class="muted" style="margin-top:8px;">Send again or close this page.</p>' +
-        '<button id="transmit-again-btn" class="btn-outline" style="margin-top:12px;">Transmit Again?</button>' +
         '</div>'
       );
-      el('transmit-again-btn').onclick = () => {
-        S.faceCard = { suit: null, value: null };
-        S.seeker = { suit: null, value: null };
-        S.hider = { suit: null, value: null };
-        renderHub();
-      };
     }
 
     function cardForRole(role) {

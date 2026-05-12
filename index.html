@@ -213,11 +213,12 @@
     .logo-mark.compact .amp-row {
       width: clamp(170px, 26vw, 280px);
       height: clamp(14px, 1.8vw, 22px);
-      transform: translateX(-6px);
+      transform: translateX(1px);
     }
     .logo-mark.compact .amp-char {
       font-size: clamp(12px, 1.5vw, 20px);
       padding: 0 clamp(8px, 1.1vw, 12px);
+      margin-left: 14px;
     }
     .panel {
       background: var(--surface);
@@ -3243,7 +3244,7 @@
         const classes = ['custom-slot'];
         if (!code) classes.push('empty');
         if (dup) classes.push('dup');
-        const tile = code ? cardTileText(code) : 'Tap to set';
+        const tile = code ? cardTileText(code) : 'Set';
         const isRed = code && isRedCode(code) ? ' red' : '';
         return '<button type="button" class="' + classes.join(' ') + '" data-custom-slot="' + idx + '"><span class="custom-slot-pos">#' + String(idx + 1) + '</span><span class="custom-slot-card' + isRed + '">' + tile + '</span></button>';
       }).join('');
@@ -3252,7 +3253,7 @@
       const countNode = el('settings-custom-count');
       if (countNode) countNode.textContent = String(assigned) + '/52';
       const hintNode = el('settings-custom-dup-note');
-      if (hintNode) hintNode.textContent = dupCount ? ('Duplicates: ' + dupCount + ' slot(s) highlighted in red.') : 'No duplicates.';
+      if (hintNode) hintNode.textContent = dupCount ? ('Duplicates: ' + dupCount + ' slot(s) highlighted in red.') : '';
       const exportBtn = el('settings-custom-export');
       if (exportBtn) exportBtn.disabled = assigned === 0;
     }
@@ -3368,7 +3369,7 @@
             '<div id="settings-custom-editor" style="display:none;">' +
               '<div class="delay-wrap">' +
                 '<div class="custom-stack-head"><span>Custom Stack Builder</span><strong id="settings-custom-count">0/52</strong></div>' +
-                '<div class="tiny" id="settings-custom-dup-note">No duplicates.</div>' +
+                '<div class="tiny" id="settings-custom-dup-note"></div>' +
                 '<div id="settings-custom-grid" class="custom-stack-grid"></div>' +
                 '<div class="custom-tools">' +
                   '<button id="settings-custom-clear" type="button" class="btn-outline">Clear All</button>' +
