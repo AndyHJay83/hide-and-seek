@@ -993,7 +993,7 @@
       text-align: center;
       padding: 24px;
     }
-    .perform-awaiting { font-weight: 700; letter-spacing: 0.2em; color: rgba(255,255,255,0.75); animation: pulse 1.5s ease-in-out infinite; }
+    .perform-awaiting { font-weight: 700; letter-spacing: 0.2em; color: rgba(255,255,255,0.75); }
     .perform-num { font-size: clamp(120px, 32vw, 200px); line-height: 1; font-weight: 900; letter-spacing: 0.04em; text-shadow: var(--glow-lg); }
     .perform-phrase {
       font-size: clamp(26px, 7vw, 54px);
@@ -1773,12 +1773,12 @@
       const abs = Math.abs(diff);
       const custom = String((S.customPhrasesEnabled && S.customPhraseSaved && S.customPhraseSaved[abs]) ? S.customPhraseSaved[abs] : '').trim();
       if (custom && lettersOnlyCount(custom) === abs) {
-        return abs + '. ' + custom;
+        return custom;
       }
       if (!PHRASES[abs]) {
         return (diff > 0 ? '+' + diff : String(diff));
       }
-      return abs + '. ' + PHRASES[abs];
+      return PHRASES[abs];
     }
 
     const S = {
