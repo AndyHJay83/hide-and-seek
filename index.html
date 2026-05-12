@@ -1526,7 +1526,7 @@
       return String(Math.floor(Math.random() * 10000)).padStart(4, '0');
     }
     function makePermanentCode() {
-      return String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+      return String(Math.floor(Math.random() * 10000)).padStart(4, '0');
     }
     function isTempCodeExpired(iso) {
       if (!iso) return true;
@@ -1771,7 +1771,7 @@
       return m + ':' + s;
     }
     function accompliceUrl() {
-      const base = APP_URL.replace(/\/$/, '') + '/accomplice/' + (S.publicCode || S.tempCode || '');
+      const base = APP_URL.replace(/\/$/, '') + '/accomplice/' + (S.publicCode || '');
       const qs = [];
       if (S.session && S.session.id) qs.push('s=' + encodeURIComponent(S.session.id));
       return qs.length ? (base + '?' + qs.join('&')) : base;
@@ -1955,10 +1955,11 @@
     }
     async function ensurePermanentCode() {
       if (!S.profileId) throw new Error('No profile loaded.');
-      if (S.publicCode) return S.publicCode;
+      const needsRegen = !S.publicCode || S.publicCode.length !== 4;
+      if (!needsRegen) return S.publicCode;
       for (let i = 0; i < 8; i++) {
         const next = makePermanentCode();
-        const { error } = await sb.from('profiles').update({ permanent_code: next }).eq('id', S.profileId).is('permanent_code', null);
+        const { error } = await sb.from('profiles').update({ permanent_code: next }).eq('id', S.profileId);
         if (!error) {
           S.publicCode = next;
           return next;
@@ -2359,21 +2360,20 @@
     }
 
     function viewHome() {
-      const codeLabel = S.publicCode || S.tempCode || '----';
-      const codeSub = S.publicCode ? 'PERMANENT CODE' : formatCountdown(tempCodeRemaining());
-      return '<div class="home-header"><div class="logo logo-home">' + logoMarkup(true) + '</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button id="copy-public-link" class="code-chip">' + codeLabel + '</button><div id="temp-code-count" class="temp-code-count">' + codeSub + '</div><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div>' + buildInlineAccompliceBlock() + '</div><div id="error-box" class="error"></div>';
+      const codeLabel = S.publicCode || '----';
+      return '<div class="home-header"><div class="logo logo-home">' + logoMarkup(true) + '</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button id="copy-public-link" class="code-chip">' + codeLabel + '</button><div class="temp-code-count">YOUR CODE</div><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div>' + buildInlineAccompliceBlock() + '</div><div id="error-box" class="error"></div>';
     }
     function bindHome() {
       el('open-settings').onclick = () => go('settings');
       (async () => {
         try {
-          const prev = S.publicCode || S.tempCode;
+          const prev = S.publicCode;
           await ensurePermanentCode();
           await ensureActiveTempCode();
           if (!S.session || sessionRemaining() <= 0 || S.session.expired) {
             await createNewSession();
           }
-          if ((S.publicCode || S.tempCode) !== prev) render();
+          if (S.publicCode !== prev) render();
         } catch (err) {
           showError(err.message || 'Could not refresh temporary code.');
         }
@@ -2382,8 +2382,7 @@
       el('copy-public-link').onclick = async () => {
         clearError();
         await ensurePermanentCode();
-        await ensureActiveTempCode();
-        if (!S.publicCode && !S.tempCode) return showError('No code available.');
+        if (!S.publicCode) return showError('No code available.');
         if (!S.isActive) return showError('Turn account back on before creating an active session link.');
         try {
           if (!S.session || sessionRemaining() <= 0 || S.session.expired) {
@@ -2449,12 +2448,10 @@
       if (perf) perf.onclick = () => go('perform');
       S.homeTickTimer = setInterval(() => {
         const n = el('home-inline-count');
-        const tc = el('temp-code-count');
-        if (!tc || !n) {
+        if (!n) {
           if (S.homeTickTimer) { clearInterval(S.homeTickTimer); S.homeTickTimer = null; }
           return;
         }
-        tc.textContent = formatCountdown(tempCodeRemaining());
         const rem = sessionRemaining();
         n.textContent = formatCountdown(rem);
         if (rem <= 0) {
@@ -3171,8 +3168,7 @@
         '<div class="phrase-wrap">' +
           '<div class="active-toggle"><span class="active-label">Use Custom Stack</span><button id="settings-stack-toggle" class="switch ' + (isCustom ? 'on' : 'off') + '" aria-label="toggle custom stack"></button><div class="toggle-state ' + (isCustom ? 'on' : '') + '">' + (isCustom ? 'ON' : 'OFF') + '</div></div>' +
           '<div id="settings-custom-wrap"' + (isCustom ? '' : ' style="display:none;"') + '>' +
-            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;"><span style="font-size:14px;font-weight:600;">Custom Stack</span><button id="settings-custom-edit-btn" class="btn-outline" style="width:auto;min-height:34px;padding:6px 16px;margin:0;font-size:13px;">EDIT</button></div>' +
-            '<div id="settings-custom-editor" style="display:none;">' +
+            '<div id="settings-custom-editor">' +
               '<div class="delay-wrap">' +
                 '<div class="custom-stack-head"><span>Custom Stack Builder</span><strong id="settings-custom-count">0/52</strong></div>' +
                 '<div class="tiny" id="settings-custom-dup-note"></div>' +
@@ -3203,7 +3199,7 @@
             '<div id="settings-phrase-grid" class="phrase-grid"></div>' +
           '</div>' +
         '</div>';
-      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.tempCode || '----') + '</strong> <em style="margin-left:6px;font-size:12px;">' + formatCountdown(tempCodeRemaining()) + '</em></p>' + stackSection + customPhraseBlock + '<button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
+      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong style="color:#5b9bf7;">' + (S.publicCode || '----') + '</strong></p>' + stackSection + customPhraseBlock + '<button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
     }
     function bindSettings() {
       const baseCustom = Array.isArray(S.customStackCodes) ? S.customStackCodes.map((c) => normalizeCardCode(c)).filter(Boolean) : [];
@@ -3221,22 +3217,12 @@
             state.textContent = next ? 'ON' : 'OFF';
           }
           const customWrap = el('settings-custom-wrap');
-          if (customWrap) customWrap.style.display = next ? '' : 'none';
-          const editor = el('settings-custom-editor');
-          if (editor) editor.style.display = 'none';
-        };
-      }
-      const editBtn = el('settings-custom-edit-btn');
-      if (editBtn) {
-        editBtn.onclick = () => {
-          const editor = el('settings-custom-editor');
-          if (!editor) return;
-          const show = editor.style.display === 'none';
-          editor.style.display = show ? '' : 'none';
-          editBtn.textContent = show ? 'DONE' : 'EDIT';
-          if (show) {
-            renderCustomStackGrid();
-            renderCustomStackLibrary();
+          if (customWrap) {
+            customWrap.style.display = next ? '' : 'none';
+            if (next) {
+              renderCustomStackGrid();
+              renderCustomStackLibrary();
+            }
           }
         };
       }
