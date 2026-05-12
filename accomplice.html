@@ -563,12 +563,7 @@
         if (data.expired) return screenExpired();
         var age = Date.now() - new Date(data.created_at).getTime();
         if (age > SESSION_TTL_MS) return screenExpired();
-        var fcParam = params.get('fc');
-        if (fcParam === '1' || data.force_face_card === true) {
-          S.askFaceCard = false;
-        } else {
-          S.askFaceCard = true;
-        }
+        S.askFaceCard = true;
         renderHub();
       } catch (err) {
         screenError('Error', err.message || 'Could not load session.');

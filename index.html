@@ -1801,7 +1801,7 @@
       customPhraseSaved: {},
       customPhraseDraft: {},
       customPhraseLocked: {},
-      forceBottomCard: true,
+      forceBottomCard: false,
       forcedBottomCode: '',
       runtimeBottomCode: '',
       recoveryMode: false,
@@ -1852,7 +1852,6 @@
       const base = APP_URL.replace(/\/$/, '') + '/accomplice/' + (S.publicCode || S.tempCode || '');
       const qs = [];
       if (S.session && S.session.id) qs.push('s=' + encodeURIComponent(S.session.id));
-      if (S.forceBottomCard) qs.push('fc=1');
       return qs.length ? (base + '?' + qs.join('&')) : base;
     }
     function stopVoice() {
@@ -2146,12 +2145,8 @@
       const { error: expireErr } = await sb.from('sessions').update({ expired: true }).eq('performer_id', S.profileId).eq('expired', false);
       if (expireErr) throw new Error(mapSetupError(expireErr));
       let data, error;
-      const row = { performer_id: S.profileId, force_face_card: !!S.forceBottomCard };
+      const row = { performer_id: S.profileId };
       ({ data, error } = await sb.from('sessions').insert(row).select('*').single());
-      if (error && /force_face_card|schema cache/i.test(error.message || '')) {
-        delete row.force_face_card;
-        ({ data, error } = await sb.from('sessions').insert(row).select('*').single());
-      }
       if (error) throw new Error(mapSetupError(error));
       S.session = data;
       S.performResult = null;
@@ -3708,7 +3703,7 @@
       });
       S.loginEmail = readLastEmail();
       S.topCardCode = readTopCardCode();
-      S.forceBottomCard = readForceBottomCard();
+      S.forceBottomCard = false;
       S.forcedBottomCode = readForcedBottomCode() || 'AC';
       S.runtimeBottomCode = '';
       loadCustomPhraseConfigIntoState();
