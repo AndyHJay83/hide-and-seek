@@ -3353,29 +3353,36 @@
       row.className = phraseRowClassForPosition(pos);
     }
     function viewSettings() {
-      const stackToggle = '<div class="btn-row"><button id="settings-stack-mnemonica" class="' + (S.stackType === 'mnemonica' ? 'btn-primary' : 'btn-outline') + '" style="flex:1;">MNEMONICA</button><button id="settings-stack-custom" class="' + (S.stackType === 'custom' ? 'btn-primary' : 'btn-outline') + '" style="flex:1;">CUSTOM</button></div>';
-      const customBlock = '' +
-        '<div class="delay-wrap">' +
-          '<div class="custom-stack-head"><span>Custom Stack Builder</span><strong id="settings-custom-count">0/52</strong></div>' +
-          '<div class="tiny" id="settings-custom-dup-note">No duplicates.</div>' +
-          '<div id="settings-custom-grid" class="custom-stack-grid"></div>' +
-          '<div class="custom-tools">' +
-            '<button id="settings-custom-clear" type="button" class="btn-outline">Clear All</button>' +
-            '<button id="settings-custom-import" type="button" class="btn-outline">Import .txt</button>' +
-            '<button id="settings-custom-export" type="button" class="btn-outline">Export .txt</button>' +
-            '<button id="settings-custom-save" type="button" class="btn-primary">Save Named Stack</button>' +
-          '</div>' +
-          '<input id="settings-custom-name" class="custom-save-name" type="text" maxlength="42" placeholder="Custom stack name">' +
-          '<input id="settings-custom-import-file" type="file" accept=".txt,text/plain" style="display:none;">' +
-          '<div class="tiny">Tap any slot, pick value then suit, and it auto-assigns.</div>' +
-          '<div class="custom-saved-list" id="settings-custom-saved"></div>' +
-        '</div>' +
-        '<div id="settings-custom-picker" class="custom-picker-backdrop">' +
-          '<div class="custom-picker">' +
-            '<div id="settings-custom-picker-label" class="tiny">Set Card</div>' +
-            '<div id="settings-custom-picker-values" class="entry-val-grid"></div>' +
-            '<div id="settings-custom-picker-suits" class="entry-suit-row"></div>' +
-            '<div class="btn-row"><button id="settings-custom-clear-slot" class="btn-outline" type="button">Clear Slot</button><button id="settings-custom-cancel" class="btn-outline" type="button">Cancel</button></div>' +
+      const isCustom = S.stackType === 'custom';
+      const stackSection = '' +
+        '<div class="phrase-wrap">' +
+          '<div class="active-toggle"><span class="active-label">Use Custom Stack</span><button id="settings-stack-toggle" class="switch ' + (isCustom ? 'on' : 'off') + '" aria-label="toggle custom stack"></button><div class="toggle-state ' + (isCustom ? 'on' : '') + '">' + (isCustom ? 'ON' : 'OFF') + '</div></div>' +
+          '<div id="settings-custom-wrap"' + (isCustom ? '' : ' style="display:none;"') + '>' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;"><span style="font-size:14px;font-weight:600;">Custom Stack</span><button id="settings-custom-edit-btn" class="btn-outline" style="width:auto;min-height:34px;padding:6px 16px;margin:0;font-size:13px;">EDIT</button></div>' +
+            '<div id="settings-custom-editor" style="display:none;">' +
+              '<div class="delay-wrap">' +
+                '<div class="custom-stack-head"><span>Custom Stack Builder</span><strong id="settings-custom-count">0/52</strong></div>' +
+                '<div class="tiny" id="settings-custom-dup-note">No duplicates.</div>' +
+                '<div id="settings-custom-grid" class="custom-stack-grid"></div>' +
+                '<div class="custom-tools">' +
+                  '<button id="settings-custom-clear" type="button" class="btn-outline">Clear All</button>' +
+                  '<button id="settings-custom-import" type="button" class="btn-outline">Import .txt</button>' +
+                  '<button id="settings-custom-export" type="button" class="btn-outline">Export .txt</button>' +
+                  '<button id="settings-custom-save" type="button" class="btn-primary">Save Named Stack</button>' +
+                '</div>' +
+                '<input id="settings-custom-name" class="custom-save-name" type="text" maxlength="42" placeholder="Custom stack name">' +
+                '<input id="settings-custom-import-file" type="file" accept=".txt,text/plain" style="display:none;">' +
+                '<div class="custom-saved-list" id="settings-custom-saved"></div>' +
+              '</div>' +
+              '<div id="settings-custom-picker" class="custom-picker-backdrop">' +
+                '<div class="custom-picker">' +
+                  '<div id="settings-custom-picker-label" class="tiny">Set Card</div>' +
+                  '<div id="settings-custom-picker-values" class="entry-val-grid"></div>' +
+                  '<div id="settings-custom-picker-suits" class="entry-suit-row"></div>' +
+                  '<div class="btn-row"><button id="settings-custom-clear-slot" class="btn-outline" type="button">Clear Slot</button><button id="settings-custom-cancel" class="btn-outline" type="button">Cancel</button></div>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
           '</div>' +
         '</div>';
       const customPhraseBlock = '' +
@@ -3385,24 +3392,41 @@
             '<div id="settings-phrase-grid" class="phrase-grid"></div>' +
           '</div>' +
         '</div>';
-      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.tempCode || '----') + '</strong> <em style="margin-left:6px;font-size:12px;">' + formatCountdown(tempCodeRemaining()) + '</em></p><div><div class="settings-stack-head"><label style="margin:0;">Card Stack</label><button id="settings-stack-info" type="button" class="stack-info-btn" aria-label="Show stack order reference">i</button></div>' + stackToggle + '<div id="settings-stack-order" class="stack-order-ref hidden"></div></div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div>' + customPhraseBlock + '<button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
+      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.tempCode || '----') + '</strong> <em style="margin-left:6px;font-size:12px;">' + formatCountdown(tempCodeRemaining()) + '</em></p>' + stackSection + customPhraseBlock + '<button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
     }
     function bindSettings() {
       const baseCustom = Array.isArray(S.customStackCodes) ? S.customStackCodes.map((c) => normalizeCardCode(c)).filter(Boolean) : [];
       S.settingsCustomDraft = new Array(52).fill('').map((_, i) => baseCustom[i] || '');
-      const stackRef = el('settings-stack-order');
-      const refreshStackRef = () => {
-        if (!stackRef) return;
-        const stype = S.stackType || 'mnemonica';
-        const parsedCustom = settingsAssignedCustomCodes();
-        stackRef.textContent = stackOrderReferenceText(stype, 0, 0, parsedCustom);
-      };
-      const stackInfoBtn = el('settings-stack-info');
-      if (stackInfoBtn && stackRef) {
-        stackInfoBtn.onclick = () => {
-          const show = stackRef.classList.contains('hidden');
-          if (show) refreshStackRef();
-          stackRef.classList.toggle('hidden', !show);
+      const stackToggleBtn = el('settings-stack-toggle');
+      if (stackToggleBtn) {
+        stackToggleBtn.onclick = () => {
+          const next = !stackToggleBtn.classList.contains('on');
+          S.stackType = next ? 'custom' : 'mnemonica';
+          stackToggleBtn.classList.toggle('on', next);
+          stackToggleBtn.classList.toggle('off', !next);
+          const state = stackToggleBtn.parentElement ? stackToggleBtn.parentElement.querySelector('.toggle-state') : null;
+          if (state) {
+            state.classList.toggle('on', next);
+            state.textContent = next ? 'ON' : 'OFF';
+          }
+          const customWrap = el('settings-custom-wrap');
+          if (customWrap) customWrap.style.display = next ? '' : 'none';
+          const editor = el('settings-custom-editor');
+          if (editor) editor.style.display = 'none';
+        };
+      }
+      const editBtn = el('settings-custom-edit-btn');
+      if (editBtn) {
+        editBtn.onclick = () => {
+          const editor = el('settings-custom-editor');
+          if (!editor) return;
+          const show = editor.style.display === 'none';
+          editor.style.display = show ? '' : 'none';
+          editBtn.textContent = show ? 'DONE' : 'EDIT';
+          if (show) {
+            renderCustomStackGrid();
+            renderCustomStackLibrary();
+          }
         };
       }
       el('settings-back').onclick = () => {
@@ -3424,20 +3448,6 @@
           go('home');
         }).catch((err) => showError(err.message || 'Could not save settings.'));
       };
-      const setStackType = (type) => {
-        S.stackType = type === 'custom' ? 'custom' : 'mnemonica';
-        const customWrap = el('settings-custom-wrap');
-        if (customWrap) customWrap.style.display = S.stackType === 'custom' ? '' : 'none';
-        const mnemoBtn = el('settings-stack-mnemonica');
-        const customBtn = el('settings-stack-custom');
-        if (mnemoBtn) mnemoBtn.className = S.stackType === 'mnemonica' ? 'btn-primary' : 'btn-outline';
-        if (customBtn) customBtn.className = S.stackType === 'custom' ? 'btn-primary' : 'btn-outline';
-        refreshStackRef();
-      };
-      const mnemoStackBtn = el('settings-stack-mnemonica');
-      if (mnemoStackBtn) mnemoStackBtn.onclick = () => setStackType('mnemonica');
-      const customStackBtn = el('settings-stack-custom');
-      if (customStackBtn) customStackBtn.onclick = () => setStackType('custom');
       renderCustomStackGrid();
       renderCustomStackLibrary();
       const customGrid = el('settings-custom-grid');
