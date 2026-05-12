@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>HIDE & SEEK — Accomplice</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@900&family=Cormorant:ital,wght@1,200&display=swap" rel="stylesheet">
   <style>
     :root {
       --black: #000;
@@ -239,6 +241,160 @@
       margin-top: 10px;
     }
     button:disabled { opacity: .55; cursor: not-allowed; }
+
+    .logo-mark {
+      position: relative;
+      z-index: 6;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow: hidden;
+      padding: 16px 0;
+    }
+    .logo-mark .atm-centre {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 55% 70% at 50% 50%, rgba(255,255,255,0.016) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    .logo-mark .atm-vignette {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 85% 85% at 50% 50%, transparent 35%, rgba(0,0,0,0.75) 100%);
+      pointer-events: none; z-index: 2;
+    }
+    .logo-mark .atm-noise {
+      position: absolute; inset: 0; opacity: 0.038;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 400px 400px;
+      pointer-events: none; z-index: 3;
+    }
+    .logo-mark .word-hide,
+    .logo-mark .word-seek {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: clamp(48px, 9.5vw, 136px);
+      line-height: 1;
+      text-transform: uppercase;
+      color: #fff;
+      letter-spacing: 0.28em;
+      transform: translateX(0.14em);
+      user-select: none;
+      position: relative;
+      z-index: 4;
+    }
+    .logo-mark .word-hide {
+      opacity: 0;
+      -webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.88) 40%, rgba(0,0,0,0.35) 80%, rgba(0,0,0,0) 100%);
+      mask-image: linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.88) 40%, rgba(0,0,0,0.35) 80%, rgba(0,0,0,0) 100%);
+      animation: riseIn 2.2s cubic-bezier(0.22, 1, 0.36, 1) 0.3s forwards;
+    }
+    .logo-mark .word-seek {
+      opacity: 0;
+      -webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.35) 20%, rgba(0,0,0,0.88) 60%, rgba(0,0,0,1) 100%);
+      mask-image: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.35) 20%, rgba(0,0,0,0.88) 60%, rgba(0,0,0,1) 100%);
+      animation: dropIn 2.2s cubic-bezier(0.22, 1, 0.36, 1) 0.3s forwards;
+    }
+    .logo-mark .amp-row {
+      display: flex;
+      align-items: center;
+      width: clamp(260px, 44vw, 630px);
+      height: clamp(22px, 3.2vw, 50px);
+      position: relative;
+      transform: translateX(-7px);
+      z-index: 4;
+    }
+    .logo-mark .rule-halo {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 80% 100% at 50% 50%, rgba(255,255,255,0.07) 0%, transparent 100%);
+      filter: blur(10px);
+      pointer-events: none;
+      opacity: 0;
+      animation: fadeIn 2s ease 0.1s forwards;
+    }
+    .logo-mark .rule-left,
+    .logo-mark .rule-right {
+      flex: 1;
+      position: relative;
+      height: 100%;
+      pointer-events: none;
+    }
+    .logo-mark .rule-left::before {
+      content: '';
+      position: absolute;
+      top: 50%; left: 0; right: 0;
+      height: 1px;
+      transform: translateY(-50%);
+      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.65) 15%, #fff 100%);
+      clip-path: inset(0 0% 0 100%);
+      animation: expandLeft 2s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
+    }
+    .logo-mark .rule-left::after {
+      content: '';
+      position: absolute;
+      top: 50%; left: 0; right: 0;
+      height: 10px;
+      transform: translateY(-50%);
+      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 20%, rgba(255,255,255,0.1) 100%);
+      filter: blur(4px);
+      opacity: 0;
+      animation: fadeIn 2s ease 0.1s forwards;
+    }
+    .logo-mark .rule-right::before {
+      content: '';
+      position: absolute;
+      top: 50%; left: 0; right: 0;
+      height: 1px;
+      transform: translateY(-50%);
+      background: linear-gradient(90deg, #fff 0%, rgba(255,255,255,0.65) 85%, transparent 100%);
+      clip-path: inset(0 100% 0 0%);
+      animation: expandRight 2s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
+    }
+    .logo-mark .rule-right::after {
+      content: '';
+      position: absolute;
+      top: 50%; left: 0; right: 0;
+      height: 10px;
+      transform: translateY(-50%);
+      background: linear-gradient(90deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.15) 80%, transparent 100%);
+      filter: blur(4px);
+      opacity: 0;
+      animation: fadeIn 2s ease 0.1s forwards;
+    }
+    .logo-mark .amp-char {
+      flex-shrink: 0;
+      position: relative;
+      z-index: 2;
+      font-family: 'Cormorant', serif;
+      font-style: italic;
+      font-weight: 200;
+      font-size: clamp(14px, 2.1vw, 30px);
+      color: #ffffff;
+      padding: 0 clamp(10px, 1.8vw, 22px);
+      margin-left: 4px;
+      line-height: 1;
+      text-shadow: 0 0 10px rgba(255,255,255,0.7), 0 0 28px rgba(255,255,255,0.35), 0 0 60px rgba(255,255,255,0.15);
+      opacity: 0;
+      animation: fadeIn 1.6s ease 0.8s forwards, ampPulse 5s ease-in-out 3s infinite;
+    }
+    @keyframes expandLeft {
+      0% { clip-path: inset(0 0% 0 100%); opacity: 1; }
+      100% { clip-path: inset(0 0% 0 0%); opacity: 1; }
+    }
+    @keyframes expandRight {
+      0% { clip-path: inset(0 100% 0 0%); opacity: 1; }
+      100% { clip-path: inset(0 0% 0 0%); opacity: 1; }
+    }
+    @keyframes riseIn {
+      0% { opacity: 0; transform: translateX(0.14em) translateY(10px); }
+      100% { opacity: 1; transform: translateX(0.14em) translateY(0); }
+    }
+    @keyframes dropIn {
+      0% { opacity: 0; transform: translateX(0.14em) translateY(-10px); }
+      100% { opacity: 1; transform: translateX(0.14em) translateY(0); }
+    }
+    @keyframes ampPulse {
+      0%, 100% { text-shadow: 0 0 10px rgba(255,255,255,0.65), 0 0 28px rgba(255,255,255,0.3), 0 0 60px rgba(255,255,255,0.12); }
+      50% { text-shadow: 0 0 16px rgba(255,255,255,0.95), 0 0 44px rgba(255,255,255,0.5), 0 0 90px rgba(255,255,255,0.22); }
+    }
   </style>
 </head>
 <body>
@@ -291,11 +447,22 @@
       screenError('Already Submitted', 'This session has already been transmitted.');
     }
 
+    function logoMarkup() {
+      return '<div class="logo-mark">' +
+        '<div class="atm-centre"></div>' +
+        '<div class="atm-vignette"></div>' +
+        '<div class="atm-noise"></div>' +
+        '<div class="word-hide">HIDE</div>' +
+        '<div class="amp-row"><div class="rule-halo"></div><div class="rule-left"></div><div class="amp-char">&amp;</div><div class="rule-right"></div></div>' +
+        '<div class="word-seek">SEEK</div>' +
+      '</div>';
+    }
+
     function screenSuccess() {
       setHTML(
         '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">' +
-        '<div class="logo" style="margin-bottom:24px;">HIDE & SEEK</div>' +
-        '<h2>Transmitted</h2>' +
+        logoMarkup() +
+        '<h2 style="margin-top:16px;letter-spacing:0.1em;">Transmitted</h2>' +
         '</div>'
       );
     }
