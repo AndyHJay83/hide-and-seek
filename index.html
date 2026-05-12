@@ -3385,18 +3385,14 @@
         '</div>';
       const customPhraseBlock = '' +
         '<div class="phrase-wrap">' +
-          '<div class="delay-row"><span>Custom Phrases</span><strong>' + (S.customPhrasesEnabled ? 'ON' : 'OFF') + '</strong></div>' +
-          '<div class="active-toggle"><span class="active-label">Use Custom Phrases</span><button id="settings-custom-phrases-toggle" class="switch ' + (S.customPhrasesEnabled ? 'on' : 'off') + '" aria-label="toggle custom phrases"></button><div class="toggle-state ' + (S.customPhrasesEnabled ? 'on' : '') + '">' + (S.customPhrasesEnabled ? 'ON' : 'OFF') + '</div></div>' +
+          '<div class="active-toggle"><span class="active-label">Use Custom Phrases</span><button id="settings-custom-phrases-toggle" class="switch ' + (S.customPhrasesEnabled ? 'on' : 'off') + '" aria-label="toggle custom phrases"></button></div>' +
           '<div id="settings-phrase-editor"' + (S.customPhrasesEnabled ? '' : ' style="display:none;"') + '>' +
             '<div class="btn-row"><button id="settings-phrases-import" type="button" class="btn-outline btn-full">Import Phrases .txt</button></div>' +
             '<input id="settings-phrases-import-file" type="file" accept=".txt,text/plain" style="display:none;">' +
             '<div id="settings-phrase-grid" class="phrase-grid"></div>' +
           '</div>' +
         '</div>';
-      const forcedBottom = normalizeCardCode(S.forcedBottomCode || '') || 'AC';
-      const fIdx = cardCodeToIdx(forcedBottom) || { suit: 2, value: 0 };
-      const forceBottomBlock = '<div class="delay-wrap"><div class="active-toggle"><span class="active-label">Set Face Card</span><button id="settings-force-bottom" class="switch ' + (S.forceBottomCard ? 'on' : 'off') + '" aria-label="toggle force bottom card"></button><div class="toggle-state ' + (S.forceBottomCard ? 'on' : '') + '">' + (S.forceBottomCard ? 'ON' : 'OFF') + '</div></div><div id="settings-force-bottom-selects"' + (S.forceBottomCard ? '' : ' style="display:none;"') + '><div class="btn-row"><select id="settings-bottom-value" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + VAL_SYMS.map((v, i) => '<option value="' + i + '"' + (fIdx.value === i ? ' selected' : '') + '>' + v + '</option>').join('') + '</select><select id="settings-bottom-suit" style="flex:1;min-height:44px;border-radius:10px;background:#0a0a0a;color:#fff;border:1px solid var(--border-mid);font-size:16px;">' + SUIT_NAMES.map((n, i) => '<option value="' + i + '"' + (fIdx.suit === i ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></div><div class="tiny">When ON, this bottom card is always used to orient the stack.</div></div><div id="settings-force-bottom-note"' + (S.forceBottomCard ? ' style="display:none;"' : '') + ' class="tiny">When OFF, your accomplice will set the face card before seeker/hider input.</div></div>';
-      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.tempCode || '----') + '</strong> <em style="margin-left:6px;font-size:12px;">' + formatCountdown(tempCodeRemaining()) + '</em></p><div><div class="settings-stack-head"><label style="margin:0;">Card Stack</label><button id="settings-stack-info" type="button" class="stack-info-btn" aria-label="Show stack order reference">i</button></div>' + stackToggle + '<div id="settings-stack-order" class="stack-order-ref hidden"></div></div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div>' + forceBottomBlock + customPhraseBlock + '<button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
+      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong>' + (S.tempCode || '----') + '</strong> <em style="margin-left:6px;font-size:12px;">' + formatCountdown(tempCodeRemaining()) + '</em></p><div><div class="settings-stack-head"><label style="margin:0;">Card Stack</label><button id="settings-stack-info" type="button" class="stack-info-btn" aria-label="Show stack order reference">i</button></div>' + stackToggle + '<div id="settings-stack-order" class="stack-order-ref hidden"></div></div><div id="settings-custom-wrap"' + (S.stackType === 'custom' ? '' : ' style="display:none;"') + '>' + customBlock + '</div>' + customPhraseBlock + '<button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
     }
     function bindSettings() {
       const baseCustom = Array.isArray(S.customStackCodes) ? S.customStackCodes.map((c) => normalizeCardCode(c)).filter(Boolean) : [];
@@ -3431,13 +3427,6 @@
           S.customStackCodes = parsed;
         }
         S.stackType = stackType;
-        const forceBottomBtn = el('settings-force-bottom');
-        S.forceBottomCard = !!(forceBottomBtn && forceBottomBtn.classList.contains('on'));
-        const bv = Number(el('settings-bottom-value') ? el('settings-bottom-value').value : 0);
-        const bs = Number(el('settings-bottom-suit') ? el('settings-bottom-suit').value : 2);
-        S.forcedBottomCode = normalizeCardCode(cardCodeFromIdx(Number.isInteger(bs) ? bs : 2, Number.isInteger(bv) ? bv : 0)) || 'AC';
-        writeForceBottomCard(S.forceBottomCard);
-        writeForcedBottomCode(S.forcedBottomCode);
         saveProfileStackSettings().then(() => {
           go('home');
         }).catch((err) => showError(err.message || 'Could not save settings.'));
@@ -3456,23 +3445,6 @@
       if (mnemoStackBtn) mnemoStackBtn.onclick = () => setStackType('mnemonica');
       const customStackBtn = el('settings-stack-custom');
       if (customStackBtn) customStackBtn.onclick = () => setStackType('custom');
-      const forceBottomBtn = el('settings-force-bottom');
-      if (forceBottomBtn) {
-        forceBottomBtn.onclick = () => {
-          const next = !forceBottomBtn.classList.contains('on');
-          forceBottomBtn.classList.toggle('on', next);
-          forceBottomBtn.classList.toggle('off', !next);
-          const state = forceBottomBtn.parentElement ? forceBottomBtn.parentElement.querySelector('.toggle-state') : null;
-          if (state) {
-            state.classList.toggle('on', next);
-            state.textContent = next ? 'ON' : 'OFF';
-          }
-          const selects = el('settings-force-bottom-selects');
-          const note = el('settings-force-bottom-note');
-          if (selects) selects.style.display = next ? '' : 'none';
-          if (note) note.style.display = next ? 'none' : '';
-        };
-      }
       renderCustomStackGrid();
       renderCustomStackLibrary();
       const customGrid = el('settings-custom-grid');
@@ -3619,11 +3591,6 @@
           S.customPhrasesEnabled = next;
           phraseToggle.classList.toggle('on', next);
           phraseToggle.classList.toggle('off', !next);
-          const state = phraseToggle.parentElement ? phraseToggle.parentElement.querySelector('.toggle-state') : null;
-          if (state) {
-            state.classList.toggle('on', next);
-            state.textContent = next ? 'ON' : 'OFF';
-          }
           const editor = el('settings-phrase-editor');
           if (editor) editor.style.display = next ? '' : 'none';
           writeCustomPhraseConfig();
