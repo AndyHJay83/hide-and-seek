@@ -2521,9 +2521,6 @@
         html += '<div class="perform-retransmit-sub perform-top">RE-TRANSMITTING</div>';
       }
       html += '<div class="' + phraseClass + '">' + phrase + '</div>';
-      if (opts.bottomRetransmit) {
-        html += '<div class="perform-retransmit-sub">RE-TRANSMITTING</div>';
-      }
       return html;
     }
     function applyPerformRetransmitIntentUi() {
@@ -2543,11 +2540,8 @@
       if (!sameSubmit) {
         S.accompliceRetransmitIntent = false;
       }
-      const isRetransmit = !!(prevSubmittedAt && data.submitted_at &&
-        new Date(data.submitted_at).getTime() > new Date(prevSubmittedAt).getTime());
       main.innerHTML = phrasePeekHtml(data, {
-        intentTop: !!S.accompliceRetransmitIntent,
-        bottomRetransmit: isRetransmit
+        intentTop: !!S.accompliceRetransmitIntent
       });
     }
     async function checkSessionForResult() {
