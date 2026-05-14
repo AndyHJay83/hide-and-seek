@@ -256,6 +256,15 @@
     }
     button:disabled { opacity: .55; cursor: not-allowed; }
 
+    .hub-retransmit-sub {
+      margin-top: 8px;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      color: var(--muted);
+    }
+
     .hub-rehint {
       margin-top: 12px;
       padding: 12px 14px;
@@ -566,6 +575,10 @@
       slots += slotButton('seeker');
       slots += slotButton('hider');
 
+      const transmitLabel = S.showReTransmitHint ? 'RE-TRANSMIT' : 'TRANSMIT';
+      const reSub = S.showReTransmitHint
+        ? '<div class="hub-retransmit-sub">RE-TRANSMITTING</div>'
+        : '';
       const hint = S.showReTransmitHint
         ? '<div class="hub-rehint">You can click on the blocks to edit the cards, then re-transmit</div>'
         : '';
@@ -574,7 +587,8 @@
         '<div class="logo">HIDE & SEEK</div>' +
         '<div class="panel">' +
         slots +
-        '<button id="hub-transmit" class="btn-primary" style="margin-top:6px;" ' + (canTransmit ? '' : 'disabled') + '>TRANSMIT</button>' +
+        '<button id="hub-transmit" class="btn-primary" style="margin-top:6px;" ' + (canTransmit ? '' : 'disabled') + '>' + transmitLabel + '</button>' +
+        reSub +
         hint +
         '</div>'
       );
@@ -589,7 +603,7 @@
         if (!isFilled(S.seeker) || !isFilled(S.hider)) return;
         var btn = el('hub-transmit');
         btn.disabled = true;
-        btn.textContent = 'Transmitting...';
+        btn.textContent = S.showReTransmitHint ? 'RE-TRANSMITTING…' : 'Transmitting…';
         try {
           var payload = {
             seeker_suit: S.seeker.suit,
