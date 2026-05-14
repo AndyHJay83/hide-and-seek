@@ -298,7 +298,7 @@
       animation: fadeIn 1.6s ease 0.8s forwards;
     }
     .screen-success .logo-mark .atm-vignette {
-      background: radial-gradient(ellipse 85% 85% at 50% 50%, transparent 50%, rgba(0,0,0,0.04) 100%);
+      display: none;
     }
     .screen-success .logo-mark .rule-halo {
       background: radial-gradient(ellipse 80% 100% at 50% 50%, rgba(0,0,0,0.06) 0%, transparent 100%);
@@ -312,22 +312,12 @@
       align-items: center;
       overflow: hidden;
       padding: 16px 0;
+      background: transparent;
     }
-    .logo-mark .atm-centre {
-      position: absolute; inset: 0;
-      background: radial-gradient(ellipse 55% 70% at 50% 50%, rgba(255,255,255,0.016) 0%, transparent 65%);
-      pointer-events: none;
-    }
-    .logo-mark .atm-vignette {
-      position: absolute; inset: 0;
-      background: radial-gradient(ellipse 85% 85% at 50% 50%, transparent 35%, rgba(0,0,0,0.75) 100%);
-      pointer-events: none; z-index: 2;
-    }
+    .logo-mark .atm-centre,
+    .logo-mark .atm-vignette,
     .logo-mark .atm-noise {
-      position: absolute; inset: 0; opacity: 0.038;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)'/%3E%3C/svg%3E");
-      background-size: 400px 400px;
-      pointer-events: none; z-index: 3;
+      display: none;
     }
     .logo-mark .word-hide,
     .logo-mark .word-seek {
