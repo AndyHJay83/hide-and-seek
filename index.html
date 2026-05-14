@@ -1010,6 +1010,14 @@
       text-shadow: 0 0 28px rgba(255,77,77,0.5);
     }
     .perform-sub { margin-top: 12px; color: var(--muted); font-size: 14px; }
+    .perform-retransmit-sub {
+      margin-top: 14px;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      color: rgba(255,255,255,0.88);
+    }
     .perform-exit {
       position: fixed;
       top: calc(env(safe-area-inset-top) + 8px);
@@ -2504,13 +2512,16 @@
       if (!S.session) return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack center"><h2>No Active Session</h2><p class="muted">Create one from ACCOMPLICE first.</p><button id="perform-back" class="btn-outline btn-full">Back Home</button></div>';
       return '<div class="perform-screen"><button id="perform-exit" class="perform-exit">EXIT</button><div id="perform-main"><div class="perform-awaiting">AWAITING TRANSMISSION</div></div><div id="perform-timer" class="perform-timer">' + formatCountdown(sessionRemaining()) + '</div></div>';
     }
-    function showPerformResult(data) {
+    function showPerformResult(data, prevSubmittedAt) {
       const main = el('perform-main');
       if (!main) return;
       const diff = calcDiff(data.seeker_suit, data.seeker_value, data.hider_suit, data.hider_value);
       const phrase = phraseForDiff(diff);
       const phraseClass = diff < 0 ? 'perform-phrase neg' : 'perform-phrase';
-      main.innerHTML = '<div class="' + phraseClass + '">' + phrase + '</div>';
+      const isRetransmit = !!(prevSubmittedAt && data.submitted_at &&
+        new Date(data.submitted_at).getTime() > new Date(prevSubmittedAt).getTime());
+      const reSub = isRetransmit ? '<div class="perform-retransmit-sub">RE-TRANSMITTING</div>' : '';
+      main.innerHTML = '<div class="' + phraseClass + '">' + phrase + '</div>' + reSub;
     }
     async function checkSessionForResult() {
       if (!S.session) return;
@@ -2518,8 +2529,9 @@
       if (error || !data) return;
       S.session = data;
       if (data.submitted_at && data.seeker_suit != null && data.hider_suit != null) {
+        const prevSubmittedAt = S.performResult && S.performResult.submitted_at;
         S.performResult = data;
-        showPerformResult(data);
+        showPerformResult(data, prevSubmittedAt);
       }
     }
     function bindPerform() {
@@ -2539,8 +2551,9 @@
         const data = payload.new;
         S.session = data;
         if (data.submitted_at && data.seeker_suit != null && data.hider_suit != null) {
+          const prevSubmittedAt = S.performResult && S.performResult.submitted_at;
           S.performResult = data;
-          showPerformResult(data);
+          showPerformResult(data, prevSubmittedAt);
         }
       }).subscribe();
       S.sessionPoll = setInterval(checkSessionForResult, 5000);
