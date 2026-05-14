@@ -8,17 +8,18 @@
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@900&family=Cormorant:ital,wght@1,200&display=swap" rel="stylesheet">
   <style>
     :root {
-      --black: #000;
-      --surface: #111;
-      --surface-2: #1a1a1a;
-      --border: rgba(255,255,255,0.09);
-      --border-mid: rgba(255,255,255,0.28);
-      --border-bright: rgba(255,255,255,0.7);
+      --black: #0a0a0a;
+      --surface: #fff;
+      --surface-2: #f4f4f5;
+      --border: rgba(0,0,0,0.1);
+      --border-mid: rgba(0,0,0,0.22);
+      --border-bright: rgba(0,0,0,0.45);
       --white: #fff;
-      --muted: rgba(255,255,255,0.85);
-      --dim: rgba(255,255,255,0.6);
-      --glow-xs: 0 0 10px rgba(255,255,255,0.15);
-      --glow-sm: 0 0 22px rgba(255,255,255,0.25);
+      --muted: rgba(0,0,0,0.62);
+      --dim: rgba(0,0,0,0.45);
+      --red-suit: #d4002a;
+      --glow-xs: 0 1px 3px rgba(0,0,0,0.08);
+      --glow-sm: 0 2px 12px rgba(0,0,0,0.08);
       --r: 14px;
     }
     * { box-sizing: border-box; }
@@ -27,9 +28,11 @@
       padding: 0;
       min-height: 100vh;
       min-height: 100dvh;
-      background: #000;
-      color: #fff;
+      background: #fff;
+      color: #0a0a0a;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
     body {
       padding-left: env(safe-area-inset-left);
@@ -52,7 +55,7 @@
       font-size: 26px;
       letter-spacing: 0.18em;
       font-weight: 900;
-      text-shadow: var(--glow-sm);
+      color: #0a0a0a;
       margin-top: 6px;
     }
     .panel {
@@ -69,8 +72,8 @@
     .slot-btn {
       width: 100%;
       border: 1px solid var(--border-mid);
-      background: transparent;
-      color: #fff;
+      background: var(--surface-2);
+      color: #0a0a0a;
       border-radius: 12px;
       min-height: 64px;
       padding: 14px 16px;
@@ -80,30 +83,31 @@
       cursor: pointer;
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: center;
+      text-align: center;
       margin-bottom: 10px;
       transition: border-color 0.15s, background 0.15s;
     }
-    .slot-btn .slot-label {
-      font-size: 13px;
-      letter-spacing: 0.1em;
-      opacity: 0.7;
-    }
-    .slot-btn .slot-card {
-      font-size: 16px;
+    .slot-btn .slot-line {
+      font-size: 15px;
       font-weight: 700;
+      letter-spacing: 0.08em;
+      line-height: 1.35;
+    }
+    .slot-btn .slot-spacer {
+      display: inline-block;
+      width: 0.65em;
     }
     .slot-btn.filled {
-      border-color: rgba(255,255,255,0.5);
-      background: rgba(255,255,255,0.06);
+      border-color: rgba(0,0,0,0.35);
+      background: #fff;
     }
-    .slot-btn.filled .slot-label { opacity: 1; }
 
     /* Picker overlay */
     .picker-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.85);
+      background: rgba(0,0,0,0.45);
       z-index: 100;
       display: flex;
       align-items: flex-end;
@@ -115,11 +119,12 @@
     .picker-sheet {
       width: 100%;
       max-width: 560px;
-      background: #111;
-      border: 1px solid var(--border);
+      background: #fff;
+      border: 1px solid var(--border-mid);
       border-radius: 18px 18px 0 0;
       padding: 18px 16px 20px;
       animation: slideUp 0.2s ease;
+      color: #0a0a0a;
     }
     @keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     .picker-header {
@@ -134,9 +139,9 @@
       letter-spacing: 0.1em;
     }
     .picker-close {
-      background: transparent;
+      background: #fff;
       border: 1px solid var(--border-mid);
-      color: #fff;
+      color: #0a0a0a;
       border-radius: 999px;
       width: 32px;
       height: 32px;
@@ -153,17 +158,17 @@
     }
     .card-btn {
       border: 1px solid var(--border-mid);
-      background: transparent;
-      color: #fff;
+      background: #fafafa;
+      color: #0a0a0a;
       border-radius: 11px;
       min-height: 54px;
-      font-size: 16px;
-      font-weight: 700;
+      font-size: 17px;
+      font-weight: 800;
       cursor: pointer;
     }
     .card-btn.sel {
-      border-color: rgba(255,255,255,0.7);
-      background: rgba(255,255,255,0.12);
+      border-color: #0a0a0a;
+      background: #e8e8ea;
       box-shadow: var(--glow-xs);
     }
     .suit-row {
@@ -173,28 +178,39 @@
     }
     .suit-btn {
       border: 1px solid var(--border-mid);
-      background: transparent;
-      color: #fff;
+      background: #fafafa;
+      color: #0a0a0a;
       border-radius: 11px;
       min-height: 58px;
       cursor: pointer;
       display: grid;
       place-items: center;
-      gap: 1px;
-      font-size: 14px;
+      gap: 2px;
+      font-size: 13px;
+      font-weight: 600;
     }
     .suit-btn span {
       display: block;
       width: 100%;
       text-align: center;
     }
-    .suit-btn span:first-child { font-size: 24px; line-height: 1; }
+    .suit-btn span:first-child {
+      font-size: 28px;
+      line-height: 1;
+      font-weight: 900;
+      -webkit-text-stroke: 0.35px currentColor;
+      text-rendering: geometricPrecision;
+    }
     .suit-btn.sel {
-      border-color: rgba(255,255,255,0.7);
-      background: rgba(255,255,255,0.12);
+      border-color: #0a0a0a;
+      background: #e8e8ea;
       box-shadow: var(--glow-xs);
     }
-    .suit-btn.red { color: #ff5c5c; }
+    .suit-btn.red { color: var(--red-suit); }
+    .suit-btn.red span:first-child {
+      -webkit-text-stroke: 0.45px rgba(0,0,0,0.25);
+      filter: drop-shadow(0 0.5px 0 rgba(0,0,0,0.12));
+    }
 
     /* Confirm screen */
     .preview {
@@ -209,7 +225,7 @@
       font-size: 15px;
     }
 
-    .btn-primary, .btn-outline {
+    .btn-primary, .btn-outline, .btn-made-error {
       width: 100%;
       border-radius: 12px;
       min-height: 46px;
@@ -220,18 +236,73 @@
     }
     .btn-primary {
       border: 0;
-      background: #fff;
-      color: #000;
+      background: #0a0a0a;
+      color: #fff;
       box-shadow: var(--glow-sm);
       font-weight: 700;
     }
     .btn-outline {
       border: 1px solid var(--border-mid);
-      background: transparent;
-      color: #fff;
+      background: #fff;
+      color: #0a0a0a;
       margin-top: 10px;
     }
+    .btn-made-error {
+      border: 1px solid var(--border-mid);
+      background: #fff;
+      color: #0a0a0a;
+      margin-top: 14px;
+      font-weight: 600;
+    }
     button:disabled { opacity: .55; cursor: not-allowed; }
+
+    .hub-rehint {
+      margin-top: 12px;
+      padding: 12px 14px;
+      background: #111;
+      color: #fff;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.45;
+      text-align: center;
+      letter-spacing: 0.02em;
+    }
+
+    .screen-success {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 16px;
+      min-height: 70vh;
+    }
+    .screen-success .logo-mark .word-hide,
+    .screen-success .logo-mark .word-seek {
+      color: #0a0a0a;
+    }
+    .screen-success .logo-mark .rule-left::before {
+      background: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.45) 15%, #0a0a0a 100%);
+    }
+    .screen-success .logo-mark .rule-right::before {
+      background: linear-gradient(90deg, #0a0a0a 0%, rgba(0,0,0,0.45) 85%, transparent 100%);
+    }
+    .screen-success .logo-mark .rule-left::after,
+    .screen-success .logo-mark .rule-right::after {
+      background: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.08) 20%, rgba(0,0,0,0.06) 100%);
+    }
+    .screen-success .logo-mark .amp-char {
+      color: #0a0a0a;
+      text-shadow: none;
+      animation: fadeIn 1.6s ease 0.8s forwards;
+    }
+    .screen-success .logo-mark .atm-vignette {
+      background: radial-gradient(ellipse 85% 85% at 50% 50%, transparent 50%, rgba(0,0,0,0.04) 100%);
+    }
+    .screen-success .logo-mark .rule-halo {
+      background: radial-gradient(ellipse 80% 100% at 50% 50%, rgba(0,0,0,0.06) 0%, transparent 100%);
+    }
 
     .logo-mark {
       position: relative;
@@ -415,7 +486,8 @@
       hider: { suit: null, value: null },
       pickerRole: null,
       pickerValue: null,
-      pickerSuit: null
+      pickerSuit: null,
+      showReTransmitHint: false
     };
 
     function el(id) { return document.getElementById(id); }
@@ -450,11 +522,19 @@
 
     function screenSuccess() {
       setHTML(
-        '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">' +
+        '<div class="screen-success">' +
         logoMarkup() +
-        '<h2 style="margin-top:16px;letter-spacing:0.1em;">Transmitted</h2>' +
+        '<h2 style="margin-top:16px;letter-spacing:0.1em;color:#0a0a0a;">Transmitted</h2>' +
+        '<button type="button" id="success-made-error" class="btn-outline btn-made-error">Made an Error?</button>' +
         '</div>'
       );
+      var errBtn = el('success-made-error');
+      if (errBtn) {
+        errBtn.onclick = function() {
+          S.showReTransmitHint = true;
+          renderHub();
+        };
+      }
     }
 
     function cardForRole(role) {
@@ -464,14 +544,16 @@
 
     function isFilled(card) { return card.suit != null && card.value != null; }
 
-    function slotButton(role, label) {
+    function slotButton(role) {
       const card = cardForRole(role);
       const filled = isFilled(card);
       const cls = 'slot-btn' + (filled ? ' filled' : '');
-      const cardText = filled ? shortLabel(card.suit, card.value) : 'Set';
+      const prefix = role === 'seeker' ? 'SEEKER' : 'HIDER';
+      const line = filled
+        ? (prefix + '<span class="slot-spacer"></span>' + shortLabel(card.suit, card.value))
+        : (prefix + ' - SET');
       return '<button class="' + cls + '" data-role="' + role + '">' +
-        '<span class="slot-label">' + label + '</span>' +
-        '<span class="slot-card">' + cardText + '</span>' +
+        '<span class="slot-line">' + line + '</span>' +
         '</button>';
     }
 
@@ -481,14 +563,19 @@
       const canTransmit = seekerReady && hiderReady;
 
       let slots = '';
-      slots += slotButton('seeker', 'SEEKER');
-      slots += slotButton('hider', 'HIDER');
+      slots += slotButton('seeker');
+      slots += slotButton('hider');
+
+      const hint = S.showReTransmitHint
+        ? '<div class="hub-rehint">You can click on the blocks to edit the cards, then re-transmit</div>'
+        : '';
 
       setHTML(
         '<div class="logo">HIDE & SEEK</div>' +
         '<div class="panel">' +
         slots +
         '<button id="hub-transmit" class="btn-primary" style="margin-top:6px;" ' + (canTransmit ? '' : 'disabled') + '>TRANSMIT</button>' +
+        hint +
         '</div>'
       );
       bindHub();
@@ -518,6 +605,7 @@
             .eq('expired', false);
           var error = result.error;
           if (error) throw error;
+          S.showReTransmitHint = false;
           screenSuccess();
         } catch (err) {
           screenError('Transmit Failed', err.message || 'Could not submit this session.');
