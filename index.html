@@ -209,7 +209,7 @@
     .logo-mark.compact .amp-char {
       font-size: clamp(12px, 1.5vw, 20px);
       padding: 0 clamp(8px, 1.1vw, 12px);
-      margin-left: 14px;
+      margin-left: 9px;
     }
     .panel {
       background: var(--surface);
@@ -1009,6 +1009,10 @@
       letter-spacing: 0.16em;
       color: rgba(255,255,255,0.88);
     }
+    .perform-retransmit-sub.perform-top {
+      margin-top: 0;
+      margin-bottom: 16px;
+    }
     .perform-exit {
       position: fixed;
       top: calc(env(safe-area-inset-top) + 8px);
@@ -1736,7 +1740,7 @@
       cameraEditIndex: -1,
       cameraEditValue: 0,
       cameraEditSuit: 0,
-      session: null, sessionChannel: null, sessionPoll: null, performResult: null,
+      session: null, sessionChannel: null, sessionPoll: null, performResult: null, accompliceRetransmitIntent: false,
       voice: {
         rec: null,
         listening: false,
@@ -1806,6 +1810,7 @@
     function clearSessionWatchers() {
       if (S.sessionChannel) { sb.removeChannel(S.sessionChannel); S.sessionChannel = null; }
       if (S.sessionPoll) { clearInterval(S.sessionPoll); S.sessionPoll = null; }
+      S.accompliceRetransmitIntent = false;
     }
     function showToast(msg) {
       const old = el('toast');
@@ -2503,16 +2508,47 @@
       if (!S.session) return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack center"><h2>No Active Session</h2><p class="muted">Create one from ACCOMPLICE first.</p><button id="perform-back" class="btn-outline btn-full">Back Home</button></div>';
       return '<div class="perform-screen"><button id="perform-exit" class="perform-exit">EXIT</button><div id="perform-main"><div class="perform-awaiting">AWAITING TRANSMISSION</div></div><div id="perform-timer" class="perform-timer">' + formatCountdown(sessionRemaining()) + '</div></div>';
     }
-    function showPerformResult(data, prevSubmittedAt) {
-      const main = el('perform-main');
-      if (!main) return;
+    function phrasePeekHtml(data, opts) {
+      opts = opts || {};
+      if (!data || data.seeker_suit == null || data.hider_suit == null) {
+        return '<div class="perform-awaiting">AWAITING TRANSMISSION</div>';
+      }
       const diff = calcDiff(data.seeker_suit, data.seeker_value, data.hider_suit, data.hider_value);
       const phrase = phraseForDiff(diff);
       const phraseClass = diff < 0 ? 'perform-phrase neg' : 'perform-phrase';
+      let html = '';
+      if (opts.intentTop) {
+        html += '<div class="perform-retransmit-sub perform-top">RE-TRANSMITTING</div>';
+      }
+      html += '<div class="' + phraseClass + '">' + phrase + '</div>';
+      if (opts.bottomRetransmit) {
+        html += '<div class="perform-retransmit-sub">RE-TRANSMITTING</div>';
+      }
+      return html;
+    }
+    function applyPerformRetransmitIntentUi() {
+      const main = el('perform-main');
+      if (!main) return;
+      if (S.performResult && S.performResult.submitted_at && S.performResult.seeker_suit != null && S.performResult.hider_suit != null) {
+        main.innerHTML = phrasePeekHtml(S.performResult, { intentTop: true });
+      } else {
+        main.innerHTML = '<div class="perform-retransmit-sub perform-top">RE-TRANSMITTING</div><div class="perform-awaiting">AWAITING TRANSMISSION</div>';
+      }
+    }
+    function showPerformResult(data, prevSubmittedAt) {
+      const main = el('perform-main');
+      if (!main) return;
+      const sameSubmit = !!(prevSubmittedAt && data.submitted_at &&
+        new Date(data.submitted_at).getTime() === new Date(prevSubmittedAt).getTime());
+      if (!sameSubmit) {
+        S.accompliceRetransmitIntent = false;
+      }
       const isRetransmit = !!(prevSubmittedAt && data.submitted_at &&
         new Date(data.submitted_at).getTime() > new Date(prevSubmittedAt).getTime());
-      const reSub = isRetransmit ? '<div class="perform-retransmit-sub">RE-TRANSMITTING</div>' : '';
-      main.innerHTML = '<div class="' + phraseClass + '">' + phrase + '</div>' + reSub;
+      main.innerHTML = phrasePeekHtml(data, {
+        intentTop: !!S.accompliceRetransmitIntent,
+        bottomRetransmit: isRetransmit
+      });
     }
     async function checkSessionForResult() {
       if (!S.session) return;
@@ -2536,17 +2572,24 @@
         const rem = sessionRemaining(); t.textContent = formatCountdown(rem);
         if (rem <= 0) { clearInterval(timerIntv); clearSessionWatchers(); S.session = null; S.performResult = null; go('home'); }
       }, 1000);
-      S.sessionChannel = sb.channel('perform-' + S.session.id).on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'sessions', filter: 'id=eq.' + S.session.id
-      }, (payload) => {
-        const data = payload.new;
-        S.session = data;
-        if (data.submitted_at && data.seeker_suit != null && data.hider_suit != null) {
-          const prevSubmittedAt = S.performResult && S.performResult.submitted_at;
-          S.performResult = data;
-          showPerformResult(data, prevSubmittedAt);
-        }
-      }).subscribe();
+      S.sessionChannel = sb
+        .channel('perform-' + S.session.id, { config: { broadcast: { self: true } } })
+        .on('postgres_changes', {
+          event: 'UPDATE', schema: 'public', table: 'sessions', filter: 'id=eq.' + S.session.id
+        }, (payload) => {
+          const data = payload.new;
+          S.session = data;
+          if (data.submitted_at && data.seeker_suit != null && data.hider_suit != null) {
+            const prevSubmittedAt = S.performResult && S.performResult.submitted_at;
+            S.performResult = data;
+            showPerformResult(data, prevSubmittedAt);
+          }
+        })
+        .on('broadcast', { event: 'accomplice-retransmit-intent' }, () => {
+          S.accompliceRetransmitIntent = true;
+          applyPerformRetransmitIntentUi();
+        })
+        .subscribe();
       S.sessionPoll = setInterval(checkSessionForResult, 5000);
       checkSessionForResult();
     }

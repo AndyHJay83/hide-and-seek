@@ -176,6 +176,12 @@
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 8px;
     }
+    .picker-actions {
+      margin-top: 14px;
+    }
+    .picker-actions .btn-primary {
+      width: 100%;
+    }
     .suit-btn {
       border: 1px solid var(--border-mid);
       background: #fafafa;
@@ -521,6 +527,7 @@
       var errBtn = el('success-made-error');
       if (errBtn) {
         errBtn.onclick = function() {
+          notifyPerformerRetransmitIntent();
           S.showReTransmitHint = true;
           renderHub();
         };
@@ -572,6 +579,37 @@
       bindHub();
     }
 
+    function notifyPerformerRetransmitIntent() {
+      if (!S.sessionId) return;
+      var topic = 'perform-' + S.sessionId;
+      var ch = sb.channel(topic, { config: { broadcast: { self: true } } });
+      var finished = false;
+      function detach() {
+        if (finished) return;
+        finished = true;
+        setTimeout(function() {
+          try { ch.unsubscribe(); } catch (e) {}
+          try { sb.removeChannel(ch); } catch (e2) {}
+        }, 300);
+      }
+      var safety = setTimeout(detach, 8000);
+      ch.subscribe(function(status) {
+        if (status === 'SUBSCRIBED') {
+          clearTimeout(safety);
+          var p = ch.send({ type: 'broadcast', event: 'accomplice-retransmit-intent', payload: { t: Date.now() } });
+          function afterSend() { detach(); }
+          if (p && typeof p.then === 'function') {
+            p.then(afterSend).catch(afterSend);
+          } else {
+            afterSend();
+          }
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          clearTimeout(safety);
+          detach();
+        }
+      });
+    }
+
     function bindHub() {
       document.querySelectorAll('.slot-btn[data-role]').forEach(function(btn) {
         btn.onclick = function() { openPicker(btn.dataset.role); };
@@ -621,19 +659,20 @@
     }
 
     function tryAutoClose() {
-      if (S.pickerValue != null && S.pickerSuit != null) {
-        var card = cardForRole(S.pickerRole);
-        card.value = S.pickerValue;
-        card.suit = S.pickerSuit;
-        closePicker();
-        renderHub();
-      }
+      if (S.pickerValue == null || S.pickerSuit == null) return;
+      var card = cardForRole(S.pickerRole);
+      card.value = S.pickerValue;
+      card.suit = S.pickerSuit;
+      closePicker();
+      renderHub();
     }
 
     function renderPicker() {
       var role = S.pickerRole;
       var titles = { seeker: 'SEEKER', hider: 'HIDER' };
       var title = titles[role] || role.toUpperCase();
+      var ready = S.pickerValue != null && S.pickerSuit != null;
+      var doneDisabled = ready ? '' : ' disabled';
 
       el('picker-root').innerHTML =
         '<div class="picker-overlay" id="picker-overlay">' +
@@ -644,6 +683,9 @@
         '</div>' +
         '<div class="val-grid" id="picker-vals">' + pickerValGrid() + '</div>' +
         '<div class="suit-row" id="picker-suits">' + pickerSuitRow() + '</div>' +
+        '<div class="picker-actions">' +
+        '<button type="button" id="picker-done" class="btn-primary"' + doneDisabled + '>Done</button>' +
+        '</div>' +
         '</div>' +
         '</div>';
 
@@ -682,7 +724,6 @@
         if (!btn) return;
         S.pickerValue = Number(btn.dataset.pv);
         renderPicker();
-        tryAutoClose();
       };
 
       el('picker-suits').onclick = function(e) {
@@ -690,8 +731,15 @@
         if (!btn) return;
         S.pickerSuit = Number(btn.dataset.ps);
         renderPicker();
-        tryAutoClose();
       };
+
+      var doneBtn = el('picker-done');
+      if (doneBtn) {
+        doneBtn.onclick = function() {
+          if (S.pickerValue == null || S.pickerSuit == null) return;
+          tryAutoClose();
+        };
+      }
     }
 
 
