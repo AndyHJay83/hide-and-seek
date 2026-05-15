@@ -75,8 +75,8 @@
       background: var(--surface-2);
       color: #0a0a0a;
       border-radius: 12px;
-      min-height: 64px;
-      padding: 14px 16px;
+      min-height: unset;
+      padding: 11px 16px;
       font-size: 15px;
       font-weight: 700;
       letter-spacing: 0.06em;
@@ -167,9 +167,10 @@
       cursor: pointer;
     }
     .card-btn.sel {
-      border-color: #0a0a0a;
-      background: #e8e8ea;
-      box-shadow: var(--glow-xs);
+      border: 2px solid #0a0a0a;
+      background: #c8c8cc;
+      color: #000;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15);
     }
     .suit-row {
       display: grid;
@@ -198,18 +199,24 @@
       font-size: 28px;
       line-height: 1;
       font-weight: 900;
-      -webkit-text-stroke: 0.35px currentColor;
       text-rendering: geometricPrecision;
     }
+    .suit-btn:not(.red) span:first-child {
+      font-weight: 700;
+      -webkit-text-stroke: 0.12px currentColor;
+    }
     .suit-btn.sel {
-      border-color: #0a0a0a;
-      background: #e8e8ea;
-      box-shadow: var(--glow-xs);
+      border: 2px solid #0a0a0a;
+      background: #c8c8cc;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15);
     }
     .suit-btn.red { color: var(--red-suit); }
     .suit-btn.red span:first-child {
-      -webkit-text-stroke: 0.45px rgba(0,0,0,0.25);
-      filter: drop-shadow(0 0.5px 0 rgba(0,0,0,0.12));
+      -webkit-text-stroke: 0.4px rgba(0,0,0,0.2);
+      filter: drop-shadow(0 0.5px 0 rgba(0,0,0,0.1));
+    }
+    .suit-btn.red.sel span:first-child {
+      -webkit-text-stroke: 0.45px rgba(0,0,0,0.35);
     }
 
     /* Confirm screen */
@@ -236,10 +243,20 @@
     }
     .btn-primary {
       border: 0;
-      background: #0a0a0a;
+      background: #000;
       color: #fff;
-      box-shadow: var(--glow-sm);
+      box-shadow: none;
       font-weight: 700;
+    }
+    #hub-transmit.btn-primary:not(:disabled) {
+      background: #000;
+      color: #fff;
+    }
+    #hub-transmit.btn-primary:disabled {
+      opacity: 1;
+      background: #000;
+      color: rgba(255,255,255,0.38);
+      cursor: not-allowed;
     }
     .btn-outline {
       border: 1px solid var(--border-mid);
@@ -254,19 +271,8 @@
       margin-top: 14px;
       font-weight: 600;
     }
-    button:disabled { opacity: .55; cursor: not-allowed; }
-
-    .hub-rehint {
-      margin-top: 12px;
-      padding: 12px 14px;
-      background: #111;
-      color: #fff;
-      border-radius: 10px;
-      font-size: 13px;
-      line-height: 1.45;
-      text-align: center;
-      letter-spacing: 0.02em;
-    }
+    button:disabled { cursor: not-allowed; }
+    button:disabled:not(#hub-transmit) { opacity: .55; }
 
     .screen-success {
       flex: 1;
@@ -517,7 +523,7 @@
         '<div class="screen-success">' +
         logoMarkup() +
         '<h2 style="margin-top:16px;letter-spacing:0.1em;color:#0a0a0a;">Transmitted</h2>' +
-        '<button type="button" id="success-made-error" class="btn-outline btn-made-error">Made an Error?</button>' +
+        '<button type="button" id="success-made-error" class="btn-outline btn-made-error">Transmit Again</button>' +
         '</div>'
       );
       var errBtn = el('success-made-error');
@@ -544,7 +550,7 @@
       const prefix = role === 'seeker' ? 'SEEKER' : 'HIDER';
       const line = filled
         ? (prefix + '<span class="slot-spacer"></span>' + shortLabel(card.suit, card.value))
-        : (prefix + ' - SET');
+        : prefix;
       return '<button class="' + cls + '" data-role="' + role + '">' +
         '<span class="slot-line">' + line + '</span>' +
         '</button>';
@@ -560,16 +566,11 @@
       slots += slotButton('hider');
 
       const transmitLabel = S.showReTransmitHint ? 'RE-TRANSMIT' : 'TRANSMIT';
-      const hint = S.showReTransmitHint
-        ? '<div class="hub-rehint">You can click on the blocks to edit the cards, then re-transmit</div>'
-        : '';
-
       setHTML(
         '<div class="logo">HIDE & SEEK</div>' +
         '<div class="panel">' +
         slots +
         '<button id="hub-transmit" class="btn-primary" style="margin-top:6px;" ' + (canTransmit ? '' : 'disabled') + '>' + transmitLabel + '</button>' +
-        hint +
         '</div>'
       );
       bindHub();
