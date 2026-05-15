@@ -746,19 +746,12 @@
       color: rgba(49,255,112,0.9);
       text-shadow: 0 0 12px rgba(49,255,112,0.45);
     }
-    .toggle-subtitle {
-      font-size: 11px;
-      letter-spacing: 0.04em;
-      color: var(--dim);
-      text-align: center;
-      margin-top: -4px;
-    }
     .home-shell {
       background: transparent;
       border: 0;
       box-shadow: none;
       padding: 0;
-      margin-top: 10vh;
+      margin-top: calc(10vh + 20px);
     }
     .inline-accomplice {
       border: 1px solid var(--border-mid);
@@ -3334,7 +3327,7 @@
       const isCustom = S.stackType === 'custom';
       const stackSection = '' +
         '<div class="phrase-wrap">' +
-          '<div class="active-toggle"><span class="active-label">Use Custom Stack</span><button id="settings-stack-toggle" class="switch ' + (isCustom ? 'on' : 'off') + '" aria-label="toggle custom stack"></button><div class="toggle-state ' + (isCustom ? 'on' : '') + '">' + (isCustom ? 'ON' : 'OFF') + '</div><div id="settings-stack-default-note" class="toggle-subtitle"' + (isCustom ? ' style="display:none;"' : '') + '>Default Stack = Mnemonica</div></div>' +
+          '<div class="active-toggle"><span class="active-label">Use Custom Stack</span><button id="settings-stack-toggle" class="switch ' + (isCustom ? 'on' : 'off') + '" aria-label="toggle custom stack"></button><div class="toggle-state ' + (isCustom ? 'on' : '') + '">' + (isCustom ? 'ON' : 'OFF') + '</div></div>' +
           '<div id="settings-custom-wrap"' + (isCustom ? '' : ' style="display:none;"') + '>' +
             '<div id="settings-custom-editor">' +
               '<div class="delay-wrap">' +
@@ -3385,8 +3378,6 @@
             state.classList.toggle('on', next);
             state.textContent = next ? 'ON' : 'OFF';
           }
-          const defaultNote = el('settings-stack-default-note');
-          if (defaultNote) defaultNote.style.display = next ? 'none' : '';
           const customWrap = el('settings-custom-wrap');
           if (customWrap) {
             customWrap.style.display = next ? '' : 'none';
