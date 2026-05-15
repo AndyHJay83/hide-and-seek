@@ -653,27 +653,36 @@
       if (maxW > 0) hub.style.setProperty('--hub-btn-width', maxW + 'px');
     }
 
-    function centerHubOnHider() {
+    function centerHubOnHider(reset) {
       const hub = document.querySelector('.hub-panel');
       const hider = document.querySelector('.slot-btn[data-role="hider"]');
       if (!hub || !hider) return;
-      hub.style.marginTop = '0px';
-      const hiderRect = hider.getBoundingClientRect();
-      const hiderMid = hiderRect.top + hiderRect.height / 2;
-      const viewMid = window.innerHeight * 0.5;
-      hub.style.marginTop = Math.round(viewMid - hiderMid) + 'px';
+      if (reset) hub.style.marginTop = '0px';
+      requestAnimationFrame(function() {
+        const hRect = hider.getBoundingClientRect();
+        const hiderMid = hRect.top + hRect.height / 2;
+        const viewMid = window.innerHeight * 0.5;
+        if (reset) {
+          hub.style.marginTop = Math.round(viewMid - hiderMid) + 'px';
+        } else {
+          const cur = parseFloat(hub.style.marginTop) || 0;
+          hub.style.marginTop = Math.round(cur + (viewMid - hiderMid)) + 'px';
+        }
+      });
     }
 
-    function scheduleHubCentering() {
+    function scheduleHubCentering(reset) {
       requestAnimationFrame(function() {
-        requestAnimationFrame(centerHubOnHider);
+        requestAnimationFrame(function() {
+          centerHubOnHider(!!reset);
+        });
       });
     }
 
     if (!window.__hubCenterOnResize) {
       window.__hubCenterOnResize = true;
       window.addEventListener('resize', function() {
-        if (document.querySelector('.hub-stage')) centerHubOnHider();
+        if (document.querySelector('.hub-stage')) scheduleHubCentering(true);
       });
     }
 
@@ -694,6 +703,86 @@
         '</div></div>'
       );
       bindHub();
+    }
+
+    function bindHubTransmit() {
+      const transmit = el('hub-transmit');
+      if (!transmit) return;
+      transmit.onclick = async function() {
+        if (!isFilled(S.seeker) || !isFilled(S.hider)) return;
+        var btn = el('hub-transmit');
+        btn.disabled = true;
+        btn.textContent = 'SENT';
+        try {
+          var payload = {
+            seeker_suit: S.seeker.suit,
+            seeker_value: S.seeker.value,
+            hider_suit: S.hider.suit,
+            hider_value: S.hider.value,
+            submitted_at: new Date().toISOString()
+          };
+          var result = await sb
+            .from('sessions')
+            .update(payload)
+            .eq('id', S.sessionId)
+            .eq('expired', false);
+          var error = result.error;
+          if (error) throw error;
+          S.showReTransmitHint = false;
+          screenSuccess();
+        } catch (err) {
+          screenError('Transmit Failed', err.message || 'Could not submit this session.');
+        }
+      };
+    }
+
+    function bindHubSlotClicks() {
+      document.querySelectorAll('.slot-btn[data-role]').forEach(function(btn) {
+        btn.onclick = function() { openPicker(btn.dataset.role); };
+      });
+    }
+
+    function bindHub() {
+      syncHubButtonWidths();
+      scheduleHubCentering(true);
+      bindHubSlotClicks();
+      bindHubTransmit();
+    }
+
+    function patchHubFromState() {
+      var hub = document.querySelector('.hub-panel');
+      if (!hub || !document.querySelector('.hub-stage')) {
+        renderHub();
+        return;
+      }
+      var wrap = document.createElement('div');
+      var roles = ['seeker', 'hider'];
+      for (var i = 0; i < roles.length; i++) {
+        var role = roles[i];
+        var old = hub.querySelector('.slot-btn[data-role="' + role + '"]');
+        if (!old) {
+          renderHub();
+          return;
+        }
+        wrap.innerHTML = slotButton(role);
+        var next = wrap.firstElementChild;
+        if (!next) {
+          renderHub();
+          return;
+        }
+        old.replaceWith(next);
+      }
+      var transmit = el('hub-transmit');
+      if (!transmit) {
+        renderHub();
+        return;
+      }
+      transmit.disabled = !(isFilled(S.seeker) && isFilled(S.hider));
+      transmit.textContent = 'TRANSMIT';
+      syncHubButtonWidths();
+      scheduleHubCentering(false);
+      bindHubSlotClicks();
+      bindHubTransmit();
     }
 
     function notifyPerformerRetransmitIntent() {
@@ -727,40 +816,6 @@
       });
     }
 
-    function bindHub() {
-      syncHubButtonWidths();
-      scheduleHubCentering();
-      document.querySelectorAll('.slot-btn[data-role]').forEach(function(btn) {
-        btn.onclick = function() { openPicker(btn.dataset.role); };
-      });
-      el('hub-transmit').onclick = async function() {
-        if (!isFilled(S.seeker) || !isFilled(S.hider)) return;
-        var btn = el('hub-transmit');
-        btn.disabled = true;
-        btn.textContent = 'SENT';
-        try {
-          var payload = {
-            seeker_suit: S.seeker.suit,
-            seeker_value: S.seeker.value,
-            hider_suit: S.hider.suit,
-            hider_value: S.hider.value,
-            submitted_at: new Date().toISOString()
-          };
-          var result = await sb
-            .from('sessions')
-            .update(payload)
-            .eq('id', S.sessionId)
-            .eq('expired', false);
-          var error = result.error;
-          if (error) throw error;
-          S.showReTransmitHint = false;
-          screenSuccess();
-        } catch (err) {
-          screenError('Transmit Failed', err.message || 'Could not submit this session.');
-        }
-      };
-    }
-
     /* ── Picker overlay ── */
 
     function openPicker(role) {
@@ -787,8 +842,8 @@
       var card = cardForRole(S.pickerRole);
       card.value = S.pickerValue;
       card.suit = S.pickerSuit;
+      patchHubFromState();
       closePicker();
-      renderHub();
     }
 
     function syncPickerSelection() {
