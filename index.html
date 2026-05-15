@@ -599,23 +599,6 @@
       padding: 0;
     }
 
-    .status-dot {
-      width: 14px;
-      height: 14px;
-      border-radius: 999px;
-      margin-right: 10px;
-      flex: 0 0 auto;
-    }
-
-    .status-dot.on {
-      background: #31ff70;
-      box-shadow: 0 0 16px rgba(49,255,112,0.85);
-    }
-
-    .status-dot.off {
-      background: #ff4545;
-      box-shadow: 0 0 16px rgba(255,69,69,0.8);
-    }
     .code-chip {
       display: inline-block;
       margin: 0 auto;
@@ -632,17 +615,6 @@
       visibility: hidden;
       pointer-events: none;
       user-select: none;
-    }
-    .status-inline {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      margin-top: 6px;
-    }
-    .status-inline .status-dot {
-      margin: 0;
-      width: 16px;
-      height: 16px;
     }
     .delay-wrap {
       border: 1px solid var(--border-mid);
@@ -2531,7 +2503,7 @@
     }
 
     function viewHome() {
-      return '<div class="home-header"><div class="logo logo-home">' + logoMarkup(true) + '</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button type="button" class="code-chip home-code-slot" tabindex="-1" aria-hidden="true" disabled>0000</button><div class="temp-code-count home-code-slot" aria-hidden="true">YOUR CODE</div><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div>' + buildInlineAccompliceBlock() + '</div><div id="error-box" class="error"></div>';
+      return '<div class="home-header"><div class="logo logo-home">' + logoMarkup(true) + '</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button type="button" class="code-chip home-code-slot" tabindex="-1" aria-hidden="true" disabled>0000</button><div class="temp-code-count home-code-slot" aria-hidden="true">YOUR CODE</div>' + buildInlineAccompliceBlock() + '</div><div id="error-box" class="error"></div>';
     }
     function bindHome() {
       el('open-settings').onclick = () => go('settings');
@@ -2549,19 +2521,6 @@
         }
       })();
       initDelayPicker();
-      const toggleActiveBtn = el('toggle-active');
-      if (toggleActiveBtn) {
-        toggleActiveBtn.onclick = async () => {
-          try {
-            await setProfileActive(!S.isActive);
-            if (!S.isActive && S.session) {
-              await sb.from('sessions').update({ expired: true }).eq('performer_id', S.profileId).eq('expired', false);
-              S.session = null;
-            }
-            render();
-          } catch (err) { showError(err.message || 'Could not update account status.'); }
-        };
-      }
 
       (async () => {
         try {
