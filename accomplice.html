@@ -81,8 +81,10 @@
       box-shadow: none;
     }
     .hub-panel .slot-btn,
-    .hub-panel #hub-transmit {
-      width: fit-content;
+    .hub-panel #hub-transmit,
+    .hub-panel .hub-btn-probe {
+      width: var(--hub-btn-width, auto);
+      min-width: var(--hub-btn-width, auto);
       max-width: 100%;
       margin-left: auto;
       margin-right: auto;
@@ -605,6 +607,36 @@
         '</button>';
     }
 
+    function hubWidestSlotLineHtml(role) {
+      const prefix = role === 'seeker' ? 'SEEKER' : 'HIDER';
+      return prefix + ' ' + slotCardLabelHtml(1, 9);
+    }
+
+    function syncHubButtonWidths() {
+      const hub = document.querySelector('.hub-panel');
+      if (!hub) return;
+      let maxW = 0;
+      const samples = [
+        { className: 'slot-btn hub-btn-probe', html: '<span class="slot-line">' + hubWidestSlotLineHtml('seeker') + '</span>' },
+        { className: 'slot-btn hub-btn-probe', html: '<span class="slot-line">' + hubWidestSlotLineHtml('hider') + '</span>' },
+        { className: 'btn-primary hub-btn-probe', html: 'TRANSMIT' }
+      ];
+      samples.forEach(function(sample) {
+        const probe = document.createElement('button');
+        probe.type = 'button';
+        probe.className = sample.className;
+        probe.style.visibility = 'hidden';
+        probe.style.position = 'absolute';
+        probe.style.left = '-9999px';
+        probe.style.pointerEvents = 'none';
+        probe.innerHTML = sample.html;
+        hub.appendChild(probe);
+        maxW = Math.max(maxW, probe.offsetWidth);
+        hub.removeChild(probe);
+      });
+      if (maxW > 0) hub.style.setProperty('--hub-btn-width', maxW + 'px');
+    }
+
     function renderHub() {
       const seekerReady = isFilled(S.seeker);
       const hiderReady = isFilled(S.hider);
@@ -616,7 +648,6 @@
 
       const transmitLabel = 'TRANSMIT';
       setHTML(
-        '<div class="logo">HIDE & SEEK</div>' +
         '<div class="hub-panel">' +
         slots +
         '<button id="hub-transmit" class="btn-primary" ' + (canTransmit ? '' : 'disabled') + '>' + transmitLabel + '</button>' +
@@ -657,6 +688,7 @@
     }
 
     function bindHub() {
+      syncHubButtonWidths();
       document.querySelectorAll('.slot-btn[data-role]').forEach(function(btn) {
         btn.onclick = function() { openPicker(btn.dataset.role); };
       });
