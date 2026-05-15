@@ -43,11 +43,16 @@ create table if not exists public.sessions (
   hider_value integer,
   submitted_at timestamptz,
   expired boolean not null default false,
+  link_token text,
   constraint sessions_seeker_suit_chk check (seeker_suit between 0 and 3 or seeker_suit is null),
   constraint sessions_hider_suit_chk check (hider_suit between 0 and 3 or hider_suit is null),
   constraint sessions_seeker_value_chk check (seeker_value between 0 and 12 or seeker_value is null),
   constraint sessions_hider_value_chk check (hider_value between 0 and 12 or hider_value is null)
 );
+
+create unique index if not exists sessions_link_token_key
+  on public.sessions (link_token)
+  where link_token is not null;
 
 alter table public.profiles enable row level security;
 alter table public.sessions enable row level security;

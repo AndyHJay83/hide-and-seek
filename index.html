@@ -1528,7 +1528,7 @@
     const TEMP_CODE_REFRESH_MS = 30000;
     const LOCAL_CUSTOM_STACK_LIBRARY_KEY = 'has.custom_stack_library_v1';
     const LOCAL_CUSTOM_PHRASES_KEY = 'has.custom_phrases_v1';
-    const APP_BUILD_ID = 'has-v9';
+    const APP_BUILD_ID = 'has-v10';
     const APP_VERSION_LABEL = (function(buildId) {
       const m = String(buildId).match(/v(\d+)$/i);
       return m ? 'V' + m[1] : buildId;
@@ -1560,6 +1560,9 @@
       }
       if (/column .*permanent_code.* does not exist/i.test(msg)) {
         return 'Database not migrated yet: run supabase-setup.sql (or fix-permanent-code-column.sql) in Supabase SQL Editor.';
+      }
+      if (/column .*link_token.* does not exist/i.test(msg)) {
+        return 'Database not migrated yet: run fix-session-link-token.sql in Supabase SQL Editor.';
       }
       return msg || 'Something went wrong.';
     }
@@ -1783,11 +1786,48 @@
       const s = String(sec % 60).padStart(2, '0');
       return m + ':' + s;
     }
+    const ACCOMPLICE_LINK_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    const ACCOMPLICE_LINK_TOKEN_LEN = 10;
+    function makeSessionLinkToken() {
+      const arr = new Uint8Array(ACCOMPLICE_LINK_TOKEN_LEN);
+      crypto.getRandomValues(arr);
+      let out = '';
+      for (let i = 0; i < ACCOMPLICE_LINK_TOKEN_LEN; i++) {
+        out += ACCOMPLICE_LINK_CHARS[arr[i] % ACCOMPLICE_LINK_CHARS.length];
+      }
+      return out;
+    }
+    async function ensureSessionLinkToken() {
+      if (!S.session || !S.session.id) return null;
+      if (S.session.link_token) return S.session.link_token;
+      for (let i = 0; i < 8; i++) {
+        const link_token = makeSessionLinkToken();
+        const { data, error } = await sb
+          .from('sessions')
+          .update({ link_token: link_token })
+          .eq('id', S.session.id)
+          .select('*')
+          .single();
+        if (!error && data) {
+          S.session = data;
+          return link_token;
+        }
+        if (error && error.code !== '23505') throw new Error(mapSetupError(error));
+      }
+      throw new Error('Could not allocate session link. Please try again.');
+    }
     function accompliceUrl() {
-      const base = APP_URL.replace(/\/$/, '') + '/accomplice/' + (S.publicCode || '');
-      const qs = [];
-      if (S.session && S.session.id) qs.push('s=' + encodeURIComponent(S.session.id));
-      return qs.length ? (base + '?' + qs.join('&')) : base;
+      const base = APP_URL.replace(/\/$/, '');
+      const token = S.session && S.session.link_token;
+      if (token) return base + '/a/' + encodeURIComponent(token);
+      if (S.session && S.session.id) {
+        return base + '/accomplice/' + (S.publicCode || '') + '?s=' + encodeURIComponent(S.session.id);
+      }
+      return base + '/accomplice/' + (S.publicCode || '');
+    }
+    async function resolveAccompliceUrl() {
+      await ensureSessionLinkToken();
+      return accompliceUrl();
     }
     function stopVoice() {
       if (S.voice.rec) {
@@ -2190,9 +2230,13 @@
       const { error: expireErr } = await sb.from('sessions').update({ expired: true }).eq('performer_id', S.profileId).eq('expired', false);
       if (expireErr) throw new Error(mapSetupError(expireErr));
       let data, error;
-      const row = { performer_id: S.profileId };
-      ({ data, error } = await sb.from('sessions').insert(row).select('*').single());
-      if (error) throw new Error(mapSetupError(error));
+      for (let i = 0; i < 8; i++) {
+        const row = { performer_id: S.profileId, link_token: makeSessionLinkToken() };
+        ({ data, error } = await sb.from('sessions').insert(row).select('*').single());
+        if (!error) break;
+        if (error.code !== '23505') throw new Error(mapSetupError(error));
+      }
+      if (error) throw new Error('Could not create session. Please try again.');
       S.session = data;
       S.performResult = null;
       return data;
@@ -2513,7 +2557,12 @@
         } catch (err) {
           return showError(err.message || 'Could not prepare active session.');
         }
-        const url = accompliceUrl();
+        let url;
+        try {
+          url = await resolveAccompliceUrl();
+        } catch (err) {
+          return showError(err.message || 'Could not prepare session link.');
+        }
         try {
           await navigator.clipboard.writeText(url);
           showToast('Copied');
@@ -2535,23 +2584,33 @@
         };
       }
 
-      const sessUrl = accompliceUrl();
-      const q = el('home-inline-qr');
-      if (q) {
-        q.innerHTML = '';
-        new QRCode(q, { text: sessUrl, width: 200, height: 200, colorDark: '#000', colorLight: '#fff' });
-      }
-      const copy = el('home-inline-copy');
-      if (copy) {
-        copy.onclick = async () => {
-          try {
-            await navigator.clipboard.writeText(sessUrl);
-            showToast('Copied');
-          } catch (_) {
-            window.prompt('Copy link:', sessUrl);
+      (async () => {
+        try {
+          if (!S.session || sessionRemaining() <= 0 || S.session.expired) {
+            if (S.isActive) await createNewSession();
           }
-        };
-      }
+          const sessUrl = await resolveAccompliceUrl();
+          const q = el('home-inline-qr');
+          if (q) {
+            q.innerHTML = '';
+            new QRCode(q, { text: sessUrl, width: 200, height: 200, colorDark: '#000', colorLight: '#fff' });
+          }
+          const copy = el('home-inline-copy');
+          if (copy) {
+            copy.onclick = async () => {
+              try {
+                const url = await resolveAccompliceUrl();
+                await navigator.clipboard.writeText(url);
+                showToast('Copied');
+              } catch (err) {
+                showError(err.message || 'Could not copy link.');
+              }
+            };
+          }
+        } catch (err) {
+          showError(err.message || 'Could not prepare accomplice link.');
+        }
+      })();
       const reset = el('home-inline-reset');
       if (reset) {
         reset.onclick = async () => {
@@ -2594,15 +2653,16 @@
         if (!S.tempCode) throw new Error('No temporary code set on your profile.');
         if (!S.isActive) throw new Error('Account is inactive. Activate account to use accomplice links.');
         if (!S.session || sessionRemaining() <= 0 || S.session.expired) await createNewSession();
-        const sessUrl = accompliceUrl();
+        const sessUrl = await resolveAccompliceUrl();
         const q = el('qr-box'); q.innerHTML = '';
         new QRCode(q, { text: sessUrl, width: 200, height: 200, colorDark: '#000', colorLight: '#fff' });
         el('copy-link').onclick = async () => {
           try {
-            await navigator.clipboard.writeText(sessUrl);
+            const url = await resolveAccompliceUrl();
+            await navigator.clipboard.writeText(url);
             showToast('Copied');
-          } catch (_) {
-            window.prompt('Copy link:', sessUrl);
+          } catch (err) {
+            showError(err.message || 'Could not copy link.');
           }
         };
         el('back-home-from-send').onclick = () => go('home');

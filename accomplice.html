@@ -517,7 +517,7 @@
   <script>
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const SESSION_TTL_MS = 60 * 60 * 1000;
-    const APP_BUILD_ID = 'has-v9';
+    const APP_BUILD_ID = 'has-v10';
     const LOCAL_APP_BUILD_KEY = 'has.app_build_id';
     const SUITS = [
       { sym: '♠', name: 'Spades', idx: 0 },
@@ -897,15 +897,22 @@
       await enforceAppBuildRefresh();
       screenLoading();
       var params = new URLSearchParams(window.location.search);
+      var linkToken = (params.get('t') || '').trim();
       var sessionId = params.get('s');
       var code = (params.get('c') || '').toUpperCase().trim();
+      var pathTokenMatch = window.location.pathname.match(/\/a\/([A-Za-z0-9]{6,12})\/?$/i);
+      if (pathTokenMatch) linkToken = pathTokenMatch[1];
       var pathCodeMatch = window.location.pathname.match(/\/accomplice\/([A-Z0-9]{3,12})\/?$/i);
       var pathCode = pathCodeMatch ? pathCodeMatch[1].toUpperCase().trim() : '';
       var resolvedCode = code || pathCode;
 
       try {
         var data = null;
-        if (sessionId) {
+        if (linkToken) {
+          var tr = await sb.from('sessions').select('*').eq('link_token', linkToken).maybeSingle();
+          if (tr.error) throw tr.error;
+          data = tr.data;
+        } else if (sessionId) {
           var r = await sb.from('sessions').select('*').eq('id', sessionId).maybeSingle();
           if (r.error) throw r.error;
           data = r.data;

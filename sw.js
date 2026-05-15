@@ -1,4 +1,4 @@
-const CACHE_NAME = 'has-v9';
+const CACHE_NAME = 'has-v10';
 const STATIC_ASSETS = [
   './index.html',
   './accomplice.html',
@@ -33,6 +33,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   const isAccomplicePage =
     url.pathname.includes('/accomplice') ||
+    /^\/a\/[A-Za-z0-9]+\/?$/.test(url.pathname) ||
     req.url.endsWith('/accomplice.html');
   const isNetworkFirst =
     url.hostname.includes('supabase.co') ||
