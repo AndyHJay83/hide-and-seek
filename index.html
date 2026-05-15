@@ -628,6 +628,11 @@
       background: var(--surface-2);
       color: #4ea8ff;
     }
+    .home-code-slot {
+      visibility: hidden;
+      pointer-events: none;
+      user-select: none;
+    }
     .status-inline {
       display: flex;
       justify-content: center;
@@ -2526,8 +2531,7 @@
     }
 
     function viewHome() {
-      const codeLabel = S.publicCode || '----';
-      return '<div class="home-header"><div class="logo logo-home">' + logoMarkup(true) + '</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button id="copy-public-link" class="code-chip">' + codeLabel + '</button><div class="temp-code-count">YOUR CODE</div><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div>' + buildInlineAccompliceBlock() + '</div><div id="error-box" class="error"></div>';
+      return '<div class="home-header"><div class="logo logo-home">' + logoMarkup(true) + '</div><button id="open-settings" class="settings-link" aria-label="settings">⚙</button></div><div class="panel stack home-shell"><button type="button" class="code-chip home-code-slot" tabindex="-1" aria-hidden="true" disabled>0000</button><div class="temp-code-count home-code-slot" aria-hidden="true">YOUR CODE</div><div class="status-inline"><div class="status-dot ' + (S.isActive ? 'on' : 'off') + '"></div></div>' + buildInlineAccompliceBlock() + '</div><div id="error-box" class="error"></div>';
     }
     function bindHome() {
       el('open-settings').onclick = () => go('settings');
@@ -2545,31 +2549,6 @@
         }
       })();
       initDelayPicker();
-      el('copy-public-link').onclick = async () => {
-        clearError();
-        await ensurePermanentCode();
-        if (!S.publicCode) return showError('No code available.');
-        if (!S.isActive) return showError('Turn account back on before creating an active session link.');
-        try {
-          if (!S.session || sessionRemaining() <= 0 || S.session.expired) {
-            await createNewSession();
-          }
-        } catch (err) {
-          return showError(err.message || 'Could not prepare active session.');
-        }
-        let url;
-        try {
-          url = await resolveAccompliceUrl();
-        } catch (err) {
-          return showError(err.message || 'Could not prepare session link.');
-        }
-        try {
-          await navigator.clipboard.writeText(url);
-          showToast('Copied');
-        } catch (_) {
-          window.prompt('Copy accomplice URL:', url);
-        }
-      };
       const toggleActiveBtn = el('toggle-active');
       if (toggleActiveBtn) {
         toggleActiveBtn.onclick = async () => {
@@ -3420,7 +3399,7 @@
             '<div id="settings-phrase-grid" class="phrase-grid"></div>' +
           '</div>' +
         '</div>';
-      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong style="color:#5b9bf7;">' + (S.publicCode || '----') + '</strong></p>' + stackSection + customPhraseBlock + '<button type="button" id="settings-back" class="btn-primary btn-full">Back</button></div><button type="button" id="logout-btn" class="btn-danger btn-full settings-logout-btn">Logout</button><div class="settings-version">' + APP_VERSION_LABEL + '</div><div id="error-box" class="error"></div>';
+      return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p>' + stackSection + customPhraseBlock + '<button type="button" id="settings-back" class="btn-primary btn-full">Back</button></div><button type="button" id="logout-btn" class="btn-danger btn-full settings-logout-btn">Logout</button><div class="settings-version">' + APP_VERSION_LABEL + '</div><div id="error-box" class="error"></div>';
     }
     function bindSettings() {
       try {
