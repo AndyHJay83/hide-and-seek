@@ -251,21 +251,14 @@
       -webkit-appearance: none;
       appearance: none;
     }
-    #hub-transmit.btn-primary {
+    #hub-transmit.btn-primary,
+    #hub-transmit.btn-primary:disabled {
       background: #000;
       color: #ffffff;
       -webkit-text-fill-color: #ffffff;
-    }
-    #hub-transmit.btn-primary:not(:disabled) {
-      background: #000;
-      color: #ffffff;
-      -webkit-text-fill-color: #ffffff;
+      opacity: 1;
     }
     #hub-transmit.btn-primary:disabled {
-      opacity: 1;
-      background: #000;
-      color: rgba(255,255,255,0.45);
-      -webkit-text-fill-color: rgba(255,255,255,0.45);
       cursor: not-allowed;
     }
     .btn-outline {
