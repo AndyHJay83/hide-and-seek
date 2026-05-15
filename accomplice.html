@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="color-scheme" content="light">
   <title>HIDE & SEEK — Accomplice</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@900&family=Cormorant:ital,wght@1,200&display=swap" rel="stylesheet">
@@ -72,7 +74,7 @@
     .slot-btn {
       width: 100%;
       border: 1px solid var(--border-mid);
-      background: var(--surface-2);
+      background: #fff;
       color: #0a0a0a;
       border-radius: 12px;
       min-height: unset;
@@ -101,6 +103,9 @@
     .slot-btn.filled {
       border-color: rgba(0,0,0,0.35);
       background: #fff;
+    }
+    .slot-btn .slot-card-part {
+      color: var(--red-suit);
     }
 
     /* Picker overlay */
@@ -467,12 +472,15 @@
   <script>
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const SESSION_TTL_MS = 60 * 60 * 1000;
+    const APP_BUILD_ID = 'has-v6';
+    const LOCAL_APP_BUILD_KEY = 'has.app_build_id';
     const SUITS = [
       { sym: '♠', name: 'Spades', idx: 0 },
       { sym: '♥', name: 'Hearts', idx: 1 },
       { sym: '♣', name: 'Clubs', idx: 2 },
       { sym: '♦', name: 'Diamonds', idx: 3 }
     ];
+    const PICKER_SUIT_ORDER = [2, 1, 0, 3];
     const VALS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
     const VAL_NAMES = ['Ace','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Jack','Queen','King'];
     function cardLabel(suit, val) { return VAL_NAMES[val] + ' of ' + SUITS[suit].name; }
@@ -546,13 +554,20 @@
 
     function isFilled(card) { return card.suit != null && card.value != null; }
 
+    function slotCardLabelHtml(suit, val) {
+      const label = shortLabel(suit, val);
+      const isRed = suit === 1 || suit === 3;
+      if (isRed) return '<span class="slot-card-part">' + label + '</span>';
+      return label;
+    }
+
     function slotButton(role) {
       const card = cardForRole(role);
       const filled = isFilled(card);
       const cls = 'slot-btn' + (filled ? ' filled' : '');
       const prefix = role === 'seeker' ? 'SEEKER' : 'HIDER';
       const line = filled
-        ? (prefix + '<span class="slot-spacer"></span>' + shortLabel(card.suit, card.value))
+        ? (prefix + ' - ' + slotCardLabelHtml(card.suit, card.value))
         : prefix;
       return '<button class="' + cls + '" data-role="' + role + '">' +
         '<span class="slot-line">' + line + '</span>' +
@@ -618,7 +633,7 @@
         if (!isFilled(S.seeker) || !isFilled(S.hider)) return;
         var btn = el('hub-transmit');
         btn.disabled = true;
-        btn.textContent = S.showReTransmitHint ? 'RE-TRANSMITTING…' : 'Transmitting…';
+        btn.textContent = 'TRANSMITTING…';
         try {
           var payload = {
             seeker_suit: S.seeker.suit,
@@ -720,7 +735,8 @@
     }
 
     function pickerSuitRow() {
-      return SUITS.map(function(s) {
+      return PICKER_SUIT_ORDER.map(function(idx) {
+        var s = SUITS[idx];
         var sel = S.pickerSuit === s.idx ? ' sel' : '';
         var red = (s.idx === 1 || s.idx === 3) ? ' red' : '';
         return '<button class="suit-btn' + sel + red + '" data-ps="' + s.idx + '"><span>' + s.sym + '</span><span>' + s.name + '</span></button>';
@@ -753,9 +769,28 @@
     }
 
 
+    async function refreshAppShell() {
+      if (!('serviceWorker' in navigator)) return;
+      try {
+        const reg = await navigator.serviceWorker.register('./sw.js');
+        if (reg && reg.update) await reg.update();
+      } catch (_) {}
+    }
+
+    async function enforceAppBuildRefresh() {
+      let prev = '';
+      try { prev = localStorage.getItem(LOCAL_APP_BUILD_KEY) || ''; } catch (_) {}
+      if (prev === APP_BUILD_ID) return false;
+      try { localStorage.setItem(LOCAL_APP_BUILD_KEY, APP_BUILD_ID); } catch (_) {}
+      await refreshAppShell();
+      return true;
+    }
+
     /* ── Init ── */
 
     async function init() {
+      await refreshAppShell();
+      await enforceAppBuildRefresh();
       screenLoading();
       var params = new URLSearchParams(window.location.search);
       var sessionId = params.get('s');

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'has-v5';
+const CACHE_NAME = 'has-v6';
 const STATIC_ASSETS = [
   './index.html',
   './accomplice.html',
@@ -31,11 +31,14 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
+  const isAccomplicePage =
+    url.pathname.includes('/accomplice') ||
+    req.url.endsWith('/accomplice.html');
   const isNetworkFirst =
     url.hostname.includes('supabase.co') ||
     url.hostname.includes('cdn.jsdelivr.net') ||
     req.url.endsWith('/index.html') ||
-    req.url.endsWith('/accomplice.html') ||
+    isAccomplicePage ||
     req.url.endsWith('/config.js') ||
     req.url.endsWith('/manifest.json');
 

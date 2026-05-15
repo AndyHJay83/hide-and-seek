@@ -1524,6 +1524,8 @@
     const TEMP_CODE_REFRESH_MS = 30000;
     const LOCAL_CUSTOM_STACK_LIBRARY_KEY = 'has.custom_stack_library_v1';
     const LOCAL_CUSTOM_PHRASES_KEY = 'has.custom_phrases_v1';
+    const APP_BUILD_ID = 'has-v6';
+    const LOCAL_APP_BUILD_KEY = 'has.app_build_id';
 
     function makeTempCode() {
       return String(Math.floor(Math.random() * 10000)).padStart(4, '0');
@@ -1869,6 +1871,34 @@
 
     function storeLastEmail(email) { try { localStorage.setItem('has.last_login_email', (email || '').toLowerCase()); } catch (_) {} }
     function readLastEmail() { try { return localStorage.getItem('has.last_login_email') || ''; } catch (_) { return ''; } }
+    async function refreshAppShell() {
+      if (!('serviceWorker' in navigator)) return;
+      try {
+        const reg = await navigator.serviceWorker.register('./sw.js');
+        if (reg && reg.update) await reg.update();
+      } catch (_) {}
+    }
+    async function enforceAppBuildRefresh() {
+      let prev = '';
+      try { prev = localStorage.getItem(LOCAL_APP_BUILD_KEY) || ''; } catch (_) {}
+      if (prev === APP_BUILD_ID) return false;
+      try { localStorage.setItem(LOCAL_APP_BUILD_KEY, APP_BUILD_ID); } catch (_) {}
+      clearSessionWatchers();
+      clearCodeRefreshTimer();
+      stopVoice();
+      S.profileId = '';
+      S.email = '';
+      S.publicCode = '';
+      S.tempCode = '';
+      S.tempCodeExpiresAt = null;
+      S.session = null;
+      S.performResult = null;
+      S.accompliceRetransmitIntent = false;
+      S.showAccompliceInline = false;
+      try { await sb.auth.signOut(); } catch (_) {}
+      await refreshAppShell();
+      return true;
+    }
     function inRecoveryFlow() {
       const h = String(window.location.hash || '').toLowerCase();
       const s = String(window.location.search || '').toLowerCase();
@@ -3515,7 +3545,14 @@
       if (S.view === 'settings') { app.innerHTML = viewSettings(); bindSettings(); }
     }
     async function init() {
-      if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+      await refreshAppShell();
+      if (await enforceAppBuildRefresh()) {
+        S.loginEmail = readLastEmail();
+        loadCustomPhraseConfigIntoState();
+        S.view = 'welcome';
+        render();
+        return;
+      }
       window.addEventListener('beforeinstallprompt', (event) => {
         event.preventDefault();
         S.deferredInstallPrompt = event;
