@@ -1879,9 +1879,13 @@
     }
     function clearSupabaseAuthStorage() {
       try {
-        Object.keys(localStorage).forEach((key) => {
-          if (key.indexOf('sb-') === 0 && key.indexOf('auth') !== -1) localStorage.removeItem(key);
-        });
+        const strip = (store) => {
+          Object.keys(store).forEach((key) => {
+            if (key.indexOf('sb-') === 0) store.removeItem(key);
+          });
+        };
+        strip(localStorage);
+        strip(sessionStorage);
       } catch (_) {}
     }
     function clearLocalPerformerState() {
@@ -1903,15 +1907,34 @@
     }
     async function logoutPerformer() {
       clearLocalPerformerState();
-      try {
-        const { error } = await sb.auth.signOut({ scope: 'global' });
-        if (error) throw error;
-      } catch (_) {
-        clearSupabaseAuthStorage();
-        try { await sb.auth.signOut({ scope: 'local' }); } catch (_e) {}
-      }
+      clearSupabaseAuthStorage();
+      try { await sb.auth.signOut({ scope: 'local' }); } catch (_) {}
+      try { await sb.auth.signOut({ scope: 'global' }); } catch (_) {}
+      clearSupabaseAuthStorage();
       const { data } = await sb.auth.getSession();
-      if (data && data.session) clearSupabaseAuthStorage();
+      if (data && data.session) {
+        clearSupabaseAuthStorage();
+        try { await sb.auth.signOut({ scope: 'local' }); } catch (_) {}
+      }
+    }
+    async function performLogoutFromSettings() {
+      const logoutBtn = el('logout-btn');
+      if (logoutBtn) logoutBtn.disabled = true;
+      try {
+        await logoutPerformer();
+        S.loginEmail = readLastEmail();
+        S.view = 'welcome';
+        clearError();
+        render();
+      } catch (err) {
+        clearSupabaseAuthStorage();
+        S.loginEmail = readLastEmail();
+        S.view = 'welcome';
+        showError(err && err.message ? err.message : 'Could not log out fully. You have been returned to the login screen.');
+        render();
+      } finally {
+        if (logoutBtn) logoutBtn.disabled = false;
+      }
     }
     async function enforceAppBuildRefresh() {
       let prev = '';
@@ -3201,6 +3224,12 @@
       S.settingsCustomPickerValue = null;
       S.settingsCustomPickerSuit = null;
     }
+    function refreshStackRef() {
+      const stackRef = el('settings-stack-order');
+      if (!stackRef || stackRef.classList.contains('hidden')) return;
+      const stype = S.stackType || 'mnemonica';
+      stackRef.textContent = stackOrderReferenceText(stype, 0, 0, settingsAssignedCustomCodes());
+    }
     function maybeApplyCustomPicker() {
       if (S.settingsCustomPickerIndex < 0) return;
       if (!Number.isInteger(S.settingsCustomPickerValue) || !Number.isInteger(S.settingsCustomPickerSuit)) return;
@@ -3208,11 +3237,7 @@
       closeCustomPicker();
       renderCustomStackGrid();
       renderCustomStackLibrary();
-      const stackRef = el('settings-stack-order');
-      if (stackRef && !stackRef.classList.contains('hidden')) {
-        const stype = S.stackType || 'mnemonica';
-        stackRef.textContent = stackOrderReferenceText(stype, 0, 0, settingsAssignedCustomCodes());
-      }
+      refreshStackRef();
     }
     function phraseRowClassForPosition(pos) {
       const text = String((S.customPhraseDraft && S.customPhraseDraft[pos]) || '');
@@ -3296,6 +3321,13 @@
       return '<div class="logo">' + logoMarkup() + '</div><div class="panel stack"><h2>Settings</h2><p>Email: ' + (S.email || '') + '</p><p>Code: <strong style="color:#5b9bf7;">' + (S.publicCode || '----') + '</strong></p>' + stackSection + customPhraseBlock + '<button id="settings-back" class="btn-primary btn-full">Back</button><div class="spacer"></div><button id="logout-btn" class="btn-danger btn-full">Logout</button></div><div id="error-box" class="error"></div>';
     }
     function bindSettings() {
+      const logoutBtn = el('logout-btn');
+      if (logoutBtn) {
+        logoutBtn.onclick = () => {
+          if (!window.confirm('Log out now?')) return;
+          performLogoutFromSettings();
+        };
+      }
       const baseCustom = Array.isArray(S.customStackCodes) ? S.customStackCodes.map((c) => normalizeCardCode(c)).filter(Boolean) : [];
       S.settingsCustomDraft = new Array(52).fill('').map((_, i) => baseCustom[i] || '');
       const stackToggleBtn = el('settings-stack-toggle');
@@ -3540,18 +3572,6 @@
         });
       }
       refreshStackRef();
-      el('logout-btn').onclick = async () => {
-        if (!window.confirm('Log out now?')) return;
-        try {
-          await logoutPerformer();
-          S.loginEmail = readLastEmail();
-          go('welcome');
-        } catch (err) {
-          showError(err && err.message ? err.message : 'Could not log out fully. You have been returned to the login screen.');
-          S.loginEmail = readLastEmail();
-          go('welcome');
-        }
-      };
     }
 
     async function render() {
