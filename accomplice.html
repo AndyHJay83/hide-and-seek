@@ -70,11 +70,15 @@
     .muted { color: var(--muted); }
     .center { text-align: center; }
 
-    /* Hub (transmit) — compact pill buttons */
+    /* Hub (transmit) — pills on page background, no card wrapper */
     .hub-panel {
       display: flex;
       flex-direction: column;
       align-items: center;
+      background: transparent;
+      border: none;
+      padding: 0;
+      box-shadow: none;
     }
     .hub-panel .slot-btn,
     .hub-panel #hub-transmit {
@@ -82,12 +86,24 @@
       max-width: 100%;
       margin-left: auto;
       margin-right: auto;
-      padding: 15px 15px;
-      min-height: 50px;
+      padding: 30px 30px;
+      min-height: 100px;
       box-sizing: border-box;
+      border-radius: 24px;
+      font-size: 30px;
+      letter-spacing: 0.06em;
     }
     .hub-panel #hub-transmit {
-      margin-top: 6px;
+      margin-top: 12px;
+    }
+    .hub-panel .slot-btn {
+      margin-bottom: 20px;
+    }
+    .hub-panel .slot-btn .slot-line {
+      font-size: 30px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      line-height: 1.35;
     }
     .slot-btn {
       border: 1px solid var(--border-mid);
@@ -601,7 +617,7 @@
       const transmitLabel = 'TRANSMIT';
       setHTML(
         '<div class="logo">HIDE & SEEK</div>' +
-        '<div class="panel hub-panel">' +
+        '<div class="hub-panel">' +
         slots +
         '<button id="hub-transmit" class="btn-primary" ' + (canTransmit ? '' : 'disabled') + '>' + transmitLabel + '</button>' +
         '</div>'
