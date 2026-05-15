@@ -696,7 +696,7 @@
         if (!isFilled(S.seeker) || !isFilled(S.hider)) return;
         var btn = el('hub-transmit');
         btn.disabled = true;
-        btn.textContent = 'TRANSMITTING…';
+        btn.textContent = 'SENT';
         try {
           var payload = {
             seeker_suit: S.seeker.suit,
