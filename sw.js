@@ -1,4 +1,4 @@
-const CACHE_NAME = 'has-v8';
+const CACHE_NAME = 'has-v9';
 const STATIC_ASSETS = [
   './index.html',
   './accomplice.html',
