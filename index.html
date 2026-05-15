@@ -59,16 +59,24 @@
     }
     .logo {
       text-align: center;
-      font-size: clamp(28px, 7vw, 40px);
-      letter-spacing: 0.18em;
-      font-weight: 900;
-      text-shadow: var(--glow-sm);
       margin: 20px 0 12px;
       display: flex;
       justify-content: center;
+      overflow: visible;
     }
     .logo.logo-home {
-      margin: 12px 0 0;
+      margin: 8px 0 0;
+    }
+    .logo-scale {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transform-origin: center center;
+      width: 100%;
+    }
+    .logo-scale--compact {
+      transform: scale(0.42);
+      margin: 0 auto -78px;
     }
     .logo-mark {
       position: relative;
@@ -80,7 +88,6 @@
       padding: 16px 0;
       background: transparent;
     }
-    /* Atmosphere layers fill a rectangle; noise/vignette read as a grey box — keep logo visually transparent */
     .logo-mark .atm-centre,
     .logo-mark .atm-vignette,
     .logo-mark .atm-noise {
@@ -104,13 +111,13 @@
       opacity: 0;
       -webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.88) 40%, rgba(0,0,0,0.35) 80%, rgba(0,0,0,0) 100%);
       mask-image: linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.88) 40%, rgba(0,0,0,0.35) 80%, rgba(0,0,0,0) 100%);
-      animation: hsLogoRiseIn 2.2s cubic-bezier(0.22, 1, 0.36, 1) 2.0s forwards;
+      animation: hsLogoRiseIn 2.2s cubic-bezier(0.22, 1, 0.36, 1) 0.3s forwards;
     }
     .logo-mark .word-seek {
       opacity: 0;
       -webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.35) 20%, rgba(0,0,0,0.88) 60%, rgba(0,0,0,1) 100%);
       mask-image: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.35) 20%, rgba(0,0,0,0.88) 60%, rgba(0,0,0,1) 100%);
-      animation: hsLogoDropIn 2.2s cubic-bezier(0.22, 1, 0.36, 1) 2.0s forwards;
+      animation: hsLogoDropIn 2.2s cubic-bezier(0.22, 1, 0.36, 1) 0.3s forwards;
     }
     .logo-mark .amp-row {
       display: flex;
@@ -128,7 +135,7 @@
       filter: blur(10px);
       pointer-events: none;
       opacity: 0;
-      animation: hsLogoFadeIn 2s ease 0.5s forwards;
+      animation: hsLogoFadeIn 2s ease 0.1s forwards;
     }
     .logo-mark .rule-left,
     .logo-mark .rule-right {
@@ -145,7 +152,7 @@
       transform: translateY(-50%);
       background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.65) 15%, #fff 100%);
       clip-path: inset(0 0% 0 100%);
-      animation: hsLogoExpandLeft 2s cubic-bezier(0.22, 1, 0.36, 1) 0.5s forwards;
+      animation: hsLogoExpandLeft 2s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
     }
     .logo-mark .rule-left::after {
       content: '';
@@ -156,7 +163,7 @@
       background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 20%, rgba(255,255,255,0.1) 100%);
       filter: blur(4px);
       opacity: 0;
-      animation: hsLogoFadeIn 2s ease 0.5s forwards;
+      animation: hsLogoFadeIn 2s ease 0.1s forwards;
     }
     .logo-mark .rule-right::before {
       content: '';
@@ -166,7 +173,7 @@
       transform: translateY(-50%);
       background: linear-gradient(90deg, #fff 0%, rgba(255,255,255,0.65) 85%, transparent 100%);
       clip-path: inset(0 100% 0 0%);
-      animation: hsLogoExpandRight 2s cubic-bezier(0.22, 1, 0.36, 1) 0.5s forwards;
+      animation: hsLogoExpandRight 2s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
     }
     .logo-mark .rule-right::after {
       content: '';
@@ -177,7 +184,7 @@
       background: linear-gradient(90deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.15) 80%, transparent 100%);
       filter: blur(4px);
       opacity: 0;
-      animation: hsLogoFadeIn 2s ease 0.5s forwards;
+      animation: hsLogoFadeIn 2s ease 0.1s forwards;
     }
     .logo-mark .amp-char {
       flex-shrink: 0;
@@ -193,23 +200,7 @@
       line-height: 1;
       text-shadow: 0 0 10px rgba(255,255,255,0.7), 0 0 28px rgba(255,255,255,0.35), 0 0 60px rgba(255,255,255,0.15);
       opacity: 0;
-      animation: hsLogoFadeIn 1.6s ease 1.6s forwards, hsLogoAmpPulse 5s ease-in-out 4s infinite;
-    }
-    .logo-mark.compact .word-hide,
-    .logo-mark.compact .word-seek {
-      font-size: clamp(28px, 4.8vw, 54px);
-      letter-spacing: 0.22em;
-      transform: translateX(0.11em);
-    }
-    .logo-mark.compact .amp-row {
-      width: clamp(170px, 26vw, 280px);
-      height: clamp(14px, 1.8vw, 22px);
-      transform: translateX(1px);
-    }
-    .logo-mark.compact .amp-char {
-      font-size: clamp(12px, 1.5vw, 20px);
-      padding: 0 clamp(8px, 1.1vw, 12px);
-      margin-left: 9px;
+      animation: hsLogoFadeIn 1.6s ease 0.8s forwards, hsLogoAmpPulse 5s ease-in-out 3s infinite;
     }
     .panel {
       background: var(--surface);
@@ -742,6 +733,13 @@
     .toggle-state.on {
       color: rgba(49,255,112,0.9);
       text-shadow: 0 0 12px rgba(49,255,112,0.45);
+    }
+    .toggle-subtitle {
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      color: var(--dim);
+      text-align: center;
+      margin-top: -4px;
     }
     .home-shell {
       background: transparent;
@@ -1556,14 +1554,14 @@
       return msg || 'Something went wrong.';
     }
     function logoMarkup(compact) {
-      return '<div class="logo-mark' + (compact ? ' compact' : '') + '">' +
+      return '<div class="logo-scale' + (compact ? ' logo-scale--compact' : '') + '"><div class="logo-mark">' +
         '<div class="atm-centre"></div>' +
         '<div class="atm-vignette"></div>' +
         '<div class="atm-noise"></div>' +
         '<div class="word-hide">HIDE</div>' +
         '<div class="amp-row"><div class="rule-halo"></div><div class="rule-left"></div><div class="amp-char">&amp;</div><div class="rule-right"></div></div>' +
         '<div class="word-seek">SEEK</div>' +
-      '</div>';
+        '</div></div>';
     }
     function readCustomStackLibrary() {
       try {
@@ -1878,14 +1876,19 @@
         if (reg && reg.update) await reg.update();
       } catch (_) {}
     }
-    async function enforceAppBuildRefresh() {
-      let prev = '';
-      try { prev = localStorage.getItem(LOCAL_APP_BUILD_KEY) || ''; } catch (_) {}
-      if (prev === APP_BUILD_ID) return false;
-      try { localStorage.setItem(LOCAL_APP_BUILD_KEY, APP_BUILD_ID); } catch (_) {}
+    function clearSupabaseAuthStorage() {
+      try {
+        Object.keys(localStorage).forEach((key) => {
+          if (key.indexOf('sb-') === 0 && key.indexOf('auth') !== -1) localStorage.removeItem(key);
+        });
+      } catch (_) {}
+    }
+    function clearLocalPerformerState() {
       clearSessionWatchers();
       clearCodeRefreshTimer();
       stopVoice();
+      stopCamera();
+      if (S.homeTickTimer) { clearInterval(S.homeTickTimer); S.homeTickTimer = null; }
       S.profileId = '';
       S.email = '';
       S.publicCode = '';
@@ -1895,7 +1898,26 @@
       S.performResult = null;
       S.accompliceRetransmitIntent = false;
       S.showAccompliceInline = false;
-      try { await sb.auth.signOut(); } catch (_) {}
+      S.deferredInstallPrompt = null;
+    }
+    async function logoutPerformer() {
+      clearLocalPerformerState();
+      try {
+        const { error } = await sb.auth.signOut({ scope: 'global' });
+        if (error) throw error;
+      } catch (_) {
+        clearSupabaseAuthStorage();
+        try { await sb.auth.signOut({ scope: 'local' }); } catch (_e) {}
+      }
+      const { data } = await sb.auth.getSession();
+      if (data && data.session) clearSupabaseAuthStorage();
+    }
+    async function enforceAppBuildRefresh() {
+      let prev = '';
+      try { prev = localStorage.getItem(LOCAL_APP_BUILD_KEY) || ''; } catch (_) {}
+      if (prev === APP_BUILD_ID) return false;
+      try { localStorage.setItem(LOCAL_APP_BUILD_KEY, APP_BUILD_ID); } catch (_) {}
+      await logoutPerformer();
       await refreshAppShell();
       return true;
     }
@@ -3237,7 +3259,7 @@
       const isCustom = S.stackType === 'custom';
       const stackSection = '' +
         '<div class="phrase-wrap">' +
-          '<div class="active-toggle"><span class="active-label">Use Custom Stack</span><button id="settings-stack-toggle" class="switch ' + (isCustom ? 'on' : 'off') + '" aria-label="toggle custom stack"></button><div class="toggle-state ' + (isCustom ? 'on' : '') + '">' + (isCustom ? 'ON' : 'OFF') + '</div></div>' +
+          '<div class="active-toggle"><span class="active-label">Use Custom Stack</span><button id="settings-stack-toggle" class="switch ' + (isCustom ? 'on' : 'off') + '" aria-label="toggle custom stack"></button><div class="toggle-state ' + (isCustom ? 'on' : '') + '">' + (isCustom ? 'ON' : 'OFF') + '</div><div id="settings-stack-default-note" class="toggle-subtitle"' + (isCustom ? ' style="display:none;"' : '') + '>Default Stack = Mnemonica</div></div>' +
           '<div id="settings-custom-wrap"' + (isCustom ? '' : ' style="display:none;"') + '>' +
             '<div id="settings-custom-editor">' +
               '<div class="delay-wrap">' +
@@ -3287,6 +3309,8 @@
             state.classList.toggle('on', next);
             state.textContent = next ? 'ON' : 'OFF';
           }
+          const defaultNote = el('settings-stack-default-note');
+          if (defaultNote) defaultNote.style.display = next ? 'none' : '';
           const customWrap = el('settings-custom-wrap');
           if (customWrap) {
             customWrap.style.display = next ? '' : 'none';
@@ -3516,20 +3540,16 @@
       }
       refreshStackRef();
       el('logout-btn').onclick = async () => {
-        const ok = window.confirm('Log out now?');
-        if (!ok) return;
-        clearSessionWatchers();
-        clearCodeRefreshTimer();
-        stopVoice();
-        S.profileId = '';
-        S.email = '';
-        S.publicCode = '';
-        S.tempCode = '';
-        S.tempCodeExpiresAt = null;
-        S.session = null;
-        S.showAccompliceInline = false;
-        try { await sb.auth.signOut(); } catch (_) {}
-        go('welcome');
+        if (!window.confirm('Log out now?')) return;
+        try {
+          await logoutPerformer();
+          S.loginEmail = readLastEmail();
+          go('welcome');
+        } catch (err) {
+          showError(err && err.message ? err.message : 'Could not log out fully. You have been returned to the login screen.');
+          S.loginEmail = readLastEmail();
+          go('welcome');
+        }
       };
     }
 
