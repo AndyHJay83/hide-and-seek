@@ -567,7 +567,7 @@
       const cls = 'slot-btn' + (filled ? ' filled' : '');
       const prefix = role === 'seeker' ? 'SEEKER' : 'HIDER';
       const line = filled
-        ? (prefix + ' - ' + slotCardLabelHtml(card.suit, card.value))
+        ? (prefix + ' ' + slotCardLabelHtml(card.suit, card.value))
         : prefix;
       return '<button class="' + cls + '" data-role="' + role + '">' +
         '<span class="slot-line">' + line + '</span>' +
